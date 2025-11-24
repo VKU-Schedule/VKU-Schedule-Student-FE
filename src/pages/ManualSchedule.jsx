@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useLocation } from 'react-router-dom'
-import { Card, Tabs, Button, Space, message, List, Tag, Divider, Spin } from 'antd'
-import { SaveOutlined, DeleteOutlined, CheckCircleOutlined, WarningOutlined, PlusOutlined } from '@ant-design/icons'
+import { Card, Tabs, Button, Space, message, List, Tag, Spin } from 'antd'
+import { SaveOutlined, DeleteOutlined, CheckCircleOutlined } from '@ant-design/icons'
 import { studentAPI } from '../services/api'
 import WeeklyCalendar from '../components/Schedule/WeeklyCalendar'
 import CourseSelector from '../components/Course/CourseSelector'
@@ -354,28 +354,7 @@ const ManualSchedule = () => {
                         </Space>
                     }
                 >
-                    {viewMode === 'selecting' && (
-                        <div style={{ marginBottom: 16, padding: 12, background: 'var(--vku-yellow-50)', borderRadius: 8 }}>
-                            <Space direction="vertical" size="small">
-                                <div><strong>Hướng dẫn:</strong></div>
-                                <div>• <strong style={{ color: 'var(--vku-red)' }}>Màu đậm</strong>: Lớp đã được chọn (cố định)</div>
-                                <div>• <strong style={{ color: 'var(--vku-yellow-800)' }}>Màu nhạt</strong>: Lớp đang xem (chưa chọn)</div>
-                                <div>• <WarningOutlined style={{ color: '#ff9800' }} /> Lớp có vạch chéo: Bị trùng lịch</div>
-                                <div>• Click vào môn học ở trên để xem các lớp của môn đó</div>
-                                <div>• Click vào ô lịch để chọn/bỏ chọn lớp</div>
-                                <div>• Nhấn <strong>"Xong"</strong> để xem lịch cuối cùng (chỉ hiển thị lớp đã chọn)</div>
-                            </Space>
-                        </div>
-                    )}
 
-                    {viewMode === 'final' && (
-                        <div style={{ marginBottom: 16, padding: 12, background: 'var(--vku-red-50)', borderRadius: 8 }}>
-                            <Space direction="vertical" size="small">
-                                <div><strong>✓ Lịch học cuối cùng</strong></div>
-                                <div>Đây là lịch học đã được chọn của bạn. Nhấn "Lưu lịch" để lưu hoặc "Quay lại chọn lớp" để chỉnh sửa.</div>
-                            </Space>
-                        </div>
-                    )}
 
                     <Spin spinning={loading}>
                         <WeeklyCalendar
