@@ -1,8 +1,80 @@
-import { Table, Card, Tag, Empty } from 'antd'
+import { Table, Card, Tag } from 'antd'
+import { WarningOutlined, CheckCircleOutlined } from '@ant-design/icons'
 
-const WeeklyCalendar = ({ schedules, selectedSchedules, onSelectSchedule }) => {
+const WeeklyCalendar = ({
+    schedules,
+    confirmedSchedules = [],
+    currentCourse = null,
+    onSelectSchedule
+}) => {
     const days = ['Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7', 'Chủ nhật']
     const periods = Array.from({ length: 13 }, (_, i) => i + 1)
+
+    // Parse periods helper
+    const parsePeriods = (periodsStr) => {
+        try {
+            if (typeof periodsStr === 'string') {
+                const cleaned = periodsStr.replace(/[\[\]]/g, '')
+                return cleaned.split(',').map(p => parseInt(p.trim()))
+            } else if (Array.isArray(periodsStr)) {
+                return periodsStr
+            }
+            return []
+        } catch (e) {
+            console.error('Error parsing periods:', e)
+            return []
+        }
+    }
+
+    // Check if schedule is confirmed
+    const isConfirmed = (scheduleId) => {
+        return confirmedSchedules.some(s => s.id === scheduleId)
+    }
+
+    // Check if schedule is from current course
+    const isCurrentCourse = (schedule) => {
+        return currentCourse && schedule.courseName === currentCourse.courseName
+    }
+
+    // Check if schedule conflicts with confirmed schedules
+    const hasConflict = (schedule) => {
+        if (isConfirmed(schedule.id)) return false
+
+        const schedulePeriods = parsePeriods(schedule.periods)
+        const scheduleDay = schedule.dayOfWeek
+
+        for (const confirmed of confirmedSchedules) {
+            if (confirmed.dayOfWeek === scheduleDay && confirmed.id !== schedule.id) {
+                const confirmedPeriods = parsePeriods(confirmed.periods)
+                const overlap = schedulePeriods.some(p => confirmedPeriods.includes(p))
+                if (overlap) {
+                    return true
+                }
+            }
+        }
+
+        return false
+    }
+
+    // Get card class based on status
+    const getCardClass = (schedule) => {
+        const classes = ['schedule-card']
+
+        if (isConfirmed(schedule.id)) {
+            classes.push('confirmed')
+        } else if (isCurrentCourse(schedule)) {
+            if (hasConflict(schedule)) {
+                classes.push('conflict')
+            } else {
+                classes.push('preview')
+            }
+        } else {
+            // Other courses - very light preview
+            classes.push('preview')
+        }
+
+        return classes.join(' ')
+    }
 
     // Group schedules by day and period
     const groupSchedules = () => {
@@ -12,18 +84,7 @@ const WeeklyCalendar = ({ schedules, selectedSchedules, onSelectSchedule }) => {
             const day = schedule.dayOfWeek
             if (!day) return
 
-            // Parse periods - could be string like "[1, 2, 3]" or "1,2,3"
-            let periodList = []
-            try {
-                if (typeof schedule.periods === 'string') {
-                    const cleaned = schedule.periods.replace(/[\[\]]/g, '')
-                    periodList = cleaned.split(',').map(p => parseInt(p.trim()))
-                } else if (Array.isArray(schedule.periods)) {
-                    periodList = schedule.periods
-                }
-            } catch (e) {
-                console.error('Error parsing periods:', e)
-            }
+            const periodList = parsePeriods(schedule.periods)
 
             periodList.forEach(period => {
                 const key = `${day}-${period}`
@@ -39,10 +100,6 @@ const WeeklyCalendar = ({ schedules, selectedSchedules, onSelectSchedule }) => {
 
     const groupedSchedules = groupSchedules()
 
-    const isSelected = (scheduleId) => {
-        return selectedSchedules.some(s => s.id === scheduleId)
-    }
-
     const columns = [
         {
             title: 'Tiết',
@@ -50,10 +107,27 @@ const WeeklyCalendar = ({ schedules, selectedSchedules, onSelectSchedule }) => {
             key: 'period',
             fixed: 'left',
             width: 60,
-            align: 'center'
+            align: 'center',
+            render: (period) => (
+                <div style={{
+                    fontWeight: 700,
+                    fontSize: 14,
+                    color: 'var(--vku-navy)'
+                }}>
+                    {period}
+                </div>
+            )
         },
         ...days.map(day => ({
-            title: day,
+            title: (
+                <div style={{
+                    fontWeight: 700,
+                    color: 'var(--vku-navy)',
+                    fontSize: 14
+                }}>
+                    {day}
+                </div>
+            ),
             dataIndex: day,
             key: day,
             width: 180,
@@ -65,34 +139,98 @@ const WeeklyCalendar = ({ schedules, selectedSchedules, onSelectSchedule }) => {
                     return <div className="calendar-cell calendar-cell-empty" />
                 }
 
+                // Sort: confirmed first, then current course, then others
+                const sortedSchedules = [...daySchedules].sort((a, b) => {
+                    const aConfirmed = isConfirmed(a.id)
+                    const bConfirmed = isConfirmed(b.id)
+                    const aCurrent = isCurrentCourse(a)
+                    const bCurrent = isCurrentCourse(b)
+
+                    if (aConfirmed && !bConfirmed) return -1
+                    if (!aConfirmed && bConfirmed) return 1
+                    if (aCurrent && !bCurrent) return -1
+                    if (!aCurrent && bCurrent) return 1
+                    return 0
+                })
+
                 return (
                     <div className="calendar-cell">
-                        {daySchedules.map(schedule => {
-                            const selected = isSelected(schedule.id)
+                        {sortedSchedules.map(schedule => {
+                            const confirmed = isConfirmed(schedule.id)
+                            const conflict = hasConflict(schedule)
+                            const current = isCurrentCourse(schedule)
+
                             return (
                                 <Card
                                     key={schedule.id}
                                     size="small"
-                                    className={`schedule-card ${selected ? 'selected' : ''}`}
-                                    onClick={() => onSelectSchedule(schedule)}
-                                    style={{ marginBottom: 4 }}
+                                    className={getCardClass(schedule)}
+                                    onClick={() => onSelectSchedule && onSelectSchedule(schedule)}
+                                    style={{
+                                        marginBottom: 4,
+                                        cursor: 'pointer'
+                                    }}
                                 >
-                                    <div style={{ fontSize: 12, fontWeight: 'bold' }}>
-                                        {schedule.courseName}
+                                    <div style={{
+                                        fontSize: 12,
+                                        fontWeight: confirmed ? 700 : 600,
+                                        marginBottom: 4,
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: 4
+                                    }}>
+                                        {confirmed && (
+                                            <CheckCircleOutlined style={{ color: 'var(--vku-red)' }} />
+                                        )}
+                                        {conflict && (
+                                            <WarningOutlined style={{ color: '#ff9800' }} />
+                                        )}
+                                        <span>{schedule.courseName}</span>
                                     </div>
+
                                     {schedule.classNumber && (
-                                        <Tag size="small" color="blue">Lớp {schedule.classNumber}</Tag>
+                                        <Tag
+                                            size="small"
+                                            color={confirmed ? "red" : current ? "gold" : "default"}
+                                            style={{ marginBottom: 4 }}
+                                        >
+                                            Lớp {schedule.classNumber}
+                                        </Tag>
                                     )}
-                                    <div style={{ fontSize: 11, color: '#666', marginTop: 4 }}>
+
+                                    <div style={{
+                                        fontSize: 11,
+                                        color: confirmed ? 'var(--text-dark)' : '#666',
+                                        marginTop: 4
+                                    }}>
                                         {schedule.instructor}
                                     </div>
-                                    <div style={{ fontSize: 11, color: '#999' }}>
+
+                                    <div style={{
+                                        fontSize: 11,
+                                        color: confirmed ? 'var(--text-medium)' : '#999'
+                                    }}>
                                         {schedule.location}.{schedule.roomNumber}
                                     </div>
+
                                     {schedule.classGroup && (
-                                        <div style={{ fontSize: 10, color: '#999', marginTop: 2 }}>
+                                        <div style={{
+                                            fontSize: 10,
+                                            color: '#999',
+                                            marginTop: 2
+                                        }}>
                                             {schedule.classGroup}
                                         </div>
+                                    )}
+
+                                    {conflict && (
+                                        <Tag
+                                            size="small"
+                                            color="warning"
+                                            style={{ marginTop: 4 }}
+                                        >
+                                            Trùng lịch
+                                        </Tag>
                                     )}
                                 </Card>
                             )
@@ -109,7 +247,17 @@ const WeeklyCalendar = ({ schedules, selectedSchedules, onSelectSchedule }) => {
     }))
 
     if (schedules.length === 0) {
-        return <Empty description="Chưa có lịch học nào" />
+        return (
+            <div className="empty-state">
+                <div className="empty-state-icon">
+                    <CheckCircleOutlined />
+                </div>
+                <div className="empty-state-title">Chưa có lịch học nào</div>
+                <div className="empty-state-description">
+                    Chọn môn học để xem lịch học
+                </div>
+            </div>
+        )
     }
 
     return (
@@ -120,6 +268,7 @@ const WeeklyCalendar = ({ schedules, selectedSchedules, onSelectSchedule }) => {
             scroll={{ x: 1400 }}
             bordered
             size="small"
+            className="vku-calendar-table"
         />
     )
 }

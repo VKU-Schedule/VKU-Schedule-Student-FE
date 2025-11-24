@@ -1,10 +1,13 @@
 import { useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Card, Typography, Space, message } from 'antd'
+import { Card, Typography, Space, message, Button } from 'antd'
 import { GoogleLogin } from '@react-oauth/google'
+import { LoginOutlined } from '@ant-design/icons'
 import { useAuth } from '../contexts/AuthContext'
 
 const { Title, Text } = Typography
+
+const USE_MOCK = import.meta.env.VITE_USE_MOCK === 'true'
 
 const Login = () => {
     const navigate = useNavigate()
@@ -30,6 +33,16 @@ const Login = () => {
         message.error('Đăng nhập thất bại. Vui lòng thử lại.')
     }
 
+    const handleMockLogin = async () => {
+        try {
+            await login('mock-credential')
+            message.success('Đăng nhập thành công (Mock Mode)!')
+            navigate('/home')
+        } catch (error) {
+            message.error(error.message || 'Đăng nhập thất bại')
+        }
+    }
+
     return (
         <div style={{
             display: 'flex',
@@ -51,15 +64,27 @@ const Login = () => {
 
                     <div>
                         <Text>Đăng nhập bằng tài khoản VKU</Text>
-                        <div style={{ marginTop: 16, display: 'flex', justifyContent: 'center' }}>
-                            <GoogleLogin
-                                onSuccess={handleSuccess}
-                                onError={handleError}
-                                useOneTap
-                                text="signin_with"
-                                shape="rectangular"
-                                size="large"
-                            />
+                        <div style={{ marginTop: 16, display: 'flex', justifyContent: 'center', flexDirection: 'column', gap: 12 }}>
+                            {USE_MOCK ? (
+                                <Button
+                                    type="primary"
+                                    size="large"
+                                    icon={<LoginOutlined />}
+                                    onClick={handleMockLogin}
+                                    block
+                                >
+                                    Đăng nhập (Mock Mode)
+                                </Button>
+                            ) : (
+                                <GoogleLogin
+                                    onSuccess={handleSuccess}
+                                    onError={handleError}
+                                    useOneTap
+                                    text="signin_with"
+                                    shape="rectangular"
+                                    size="large"
+                                />
+                            )}
                         </div>
                     </div>
 
