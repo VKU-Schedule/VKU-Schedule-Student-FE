@@ -50,13 +50,17 @@ const WeeklyCalendar = ({
         return false
     }
 
-    // Get course color
+    // Get course color (15 colors for better distribution)
     const getCourseColor = (courseName) => {
+        // Better hash function for more even distribution
         let hash = 0
         for (let i = 0; i < courseName.length; i++) {
-            hash = courseName.charCodeAt(i) + ((hash << 5) - hash)
+            const char = courseName.charCodeAt(i)
+            hash = ((hash << 5) - hash) + char
+            hash = hash & hash // Convert to 32bit integer
         }
-        return Math.abs(hash) % 5
+        // Use 15 colors instead of 5 to reduce collision
+        return Math.abs(hash) % 15
     }
 
     // Process schedules into grid

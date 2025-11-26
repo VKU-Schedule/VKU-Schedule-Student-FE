@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useLocation } from 'react-router-dom'
-import { Card, Tabs, Button, Space, message, List, Tag, Spin } from 'antd'
-import { SaveOutlined, DeleteOutlined, CheckCircleOutlined } from '@ant-design/icons'
+import { Card, Tabs, Button, Space, message, List, Tag, Spin, Alert } from 'antd'
+import { SaveOutlined, DeleteOutlined, CheckCircleOutlined, WarningOutlined } from '@ant-design/icons'
 import { studentAPI } from '../services/api'
 import WeeklyCalendar from '../components/Schedule/WeeklyCalendar'
 import CourseSelector from '../components/Course/CourseSelector'
@@ -11,19 +11,49 @@ const ManualSchedule = () => {
     const location = useLocation()
     const selectedCoursesFromPrev = location.state?.selectedCourses || []
 
+    // Reschedule mode data
+    const rescheduleMode = location.state?.rescheduleMode || false
+    const successfulClasses = location.state?.successfulClasses || []
+    const failedClasses = location.state?.failedClasses || []
+    const failedCourseNames = location.state?.failedCourseNames || []
+
     const [loading, setLoading] = useState(false)
     const [selectedCourses, setSelectedCourses] = useState(selectedCoursesFromPrev)
     const [currentCourse, setCurrentCourse] = useState(null)
     const [allSchedules, setAllSchedules] = useState([])
-    const [confirmedSchedules, setConfirmedSchedules] = useState([])
+    const [confirmedSchedules, setConfirmedSchedules] = useState(rescheduleMode ? successfulClasses : [])
     const [viewMode, setViewMode] = useState('selecting') // 'selecting' or 'final'
 
-    // Load schedules for pre-selected courses
+    // Load schedules for pre-selected courses or reschedule mode
     useEffect(() => {
-        if (selectedCoursesFromPrev.length > 0) {
+        if (rescheduleMode && failedCourseNames.length > 0) {
+            // Load schedules for failed courses
+            loadSchedulesForFailedCourses()
+        } else if (selectedCoursesFromPrev.length > 0) {
             loadSchedulesForCourses(selectedCoursesFromPrev)
         }
     }, [])
+
+    const loadSchedulesForFailedCourses = async () => {
+        setLoading(true)
+        try {
+            const allSchedulesPromises = failedCourseNames.map(courseName =>
+                studentAPI.getSchedulesByCourse(courseName)
+            )
+            const results = await Promise.all(allSchedulesPromises)
+            const combinedSchedules = results.flatMap(r => r.data)
+
+            // Add successful classes to allSchedules for display
+            setAllSchedules([...successfulClasses, ...combinedSchedules])
+
+            message.success(`Đã load ${combinedSchedules.length} lớp thay thế cho ${failedCourseNames.length} môn bị lỗi`)
+        } catch (error) {
+            message.error('Không thể tải lịch học')
+            console.error(error)
+        } finally {
+            setLoading(false)
+        }
+    }
 
     const loadSchedulesForCourses = async (courses) => {
         setLoading(true)
@@ -245,7 +275,9 @@ const ManualSchedule = () => {
     return (
         <div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <h1 style={{ color: 'var(--vku-navy)', fontWeight: 700, margin: 0 }}>Xếp Lịch Thủ Công</h1>
+                <h1 style={{ color: 'var(--vku-navy)', fontWeight: 700, margin: 0 }}>
+                    {rescheduleMode ? 'Xếp Lại Lịch' : 'Xếp Lịch Thủ Công'}
+                </h1>
                 {viewMode === 'final' && (
                     <Button
                         type="default"
@@ -255,6 +287,30 @@ const ManualSchedule = () => {
                     </Button>
                 )}
             </div>
+
+            {/* Reschedule Mode Alert */}
+            {rescheduleMode && (
+                <Alert
+                    message="Chế độ xếp lại lịch"
+                    description={
+                        <Space direction="vertical" size="small">
+                            <div>
+                                <strong>✓ {successfulClasses.length} lớp đã đăng ký thành công</strong> (màu đậm - giữ nguyên)
+                            </div>
+                            <div>
+                                <WarningOutlined style={{ color: '#ff4d4f' }} /> <strong>{failedClasses.length} lớp bị lỗi</strong> - Cần chọn lớp thay thế
+                            </div>
+                            <div>
+                                Hãy chọn lớp thay thế cho các môn: <strong>{failedCourseNames.join(', ')}</strong>
+                            </div>
+                        </Space>
+                    }
+                    type="warning"
+                    showIcon
+                    style={{ marginTop: 16 }}
+                    closable
+                />
+            )}
 
             {/* Course Selection - Always show when in selecting mode */}
             {viewMode === 'selecting' && (

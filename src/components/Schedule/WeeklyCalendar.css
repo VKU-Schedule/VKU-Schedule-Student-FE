@@ -89,7 +89,7 @@
     background: inherit;
 }
 
-/* Course Colors */
+/* Course Colors - Extended Palette (15 colors) */
 .schedule-cell.color-0 {
     background-color: #2d5d2a; /* Dark Green */
 }
@@ -128,6 +128,86 @@
 
 .schedule-cell.color-4 .cell-content {
     background-color: #5d2a2a;
+}
+
+.schedule-cell.color-5 {
+    background-color: #4a5d2a; /* Olive Green */
+}
+
+.schedule-cell.color-5 .cell-content {
+    background-color: #4a5d2a;
+}
+
+.schedule-cell.color-6 {
+    background-color: #5d2a4a; /* Dark Magenta */
+}
+
+.schedule-cell.color-6 .cell-content {
+    background-color: #5d2a4a;
+}
+
+.schedule-cell.color-7 {
+    background-color: #2a5d5d; /* Dark Teal */
+}
+
+.schedule-cell.color-7 .cell-content {
+    background-color: #2a5d5d;
+}
+
+.schedule-cell.color-8 {
+    background-color: #5d4a2a; /* Dark Orange */
+}
+
+.schedule-cell.color-8 .cell-content {
+    background-color: #5d4a2a;
+}
+
+.schedule-cell.color-9 {
+    background-color: #3d2a5d; /* Dark Purple */
+}
+
+.schedule-cell.color-9 .cell-content {
+    background-color: #3d2a5d;
+}
+
+.schedule-cell.color-10 {
+    background-color: #2a4a5d; /* Steel Blue */
+}
+
+.schedule-cell.color-10 .cell-content {
+    background-color: #2a4a5d;
+}
+
+.schedule-cell.color-11 {
+    background-color: #5d2a3d; /* Dark Rose */
+}
+
+.schedule-cell.color-11 .cell-content {
+    background-color: #5d2a3d;
+}
+
+.schedule-cell.color-12 {
+    background-color: #3d5d2a; /* Forest Green */
+}
+
+.schedule-cell.color-12 .cell-content {
+    background-color: #3d5d2a;
+}
+
+.schedule-cell.color-13 {
+    background-color: #5d3d2a; /* Rust Brown */
+}
+
+.schedule-cell.color-13 .cell-content {
+    background-color: #5d3d2a;
+}
+
+.schedule-cell.color-14 {
+    background-color: #2a3d5d; /* Deep Blue */
+}
+
+.schedule-cell.color-14 .cell-content {
+    background-color: #2a3d5d;
 }
 
 /* States */
