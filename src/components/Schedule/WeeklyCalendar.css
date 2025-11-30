@@ -256,6 +256,37 @@
     box-shadow: 0 0 0 2px rgba(255, 82, 82, 0.3) !important;
 }
 
+/* Failed state (for MyScheduleCalendar) */
+.schedule-cell.failed {
+    position: relative;
+    border: 3px solid #ff4d4f !important;
+    box-shadow: 0 0 0 2px rgba(255, 77, 79, 0.3) !important;
+    opacity: 0.75 !important;
+}
+
+.schedule-cell.failed::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: repeating-linear-gradient(
+        45deg,
+        rgba(255, 77, 79, 0.15),
+        rgba(255, 77, 79, 0.15) 10px,
+        transparent 10px,
+        transparent 20px
+    );
+    pointer-events: none;
+    z-index: 1;
+}
+
+.schedule-cell.failed .cell-content {
+    position: relative;
+    z-index: 2;
+}
+
 /* Text Styles */
 .course-name {
     font-size: 14px;

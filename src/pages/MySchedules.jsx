@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Card, List, Button, Empty, Tag, Space, Modal, message, Checkbox, Alert, Collapse, Radio, Spin } from 'antd'
+import { Card, List, Button, Empty, Tag, Space, Modal, message, Checkbox, Alert, Collapse, Radio } from 'antd'
 import { DeleteOutlined, EyeOutlined, CalendarOutlined, WarningOutlined, ThunderboltOutlined, CheckCircleOutlined } from '@ant-design/icons'
 import { studentAPI } from '../services/api'
 import { useAuth } from '../contexts/AuthContext'
 import WeeklyCalendar from '../components/Schedule/WeeklyCalendar'
+import MyScheduleCalendar from '../components/Schedule/MyScheduleCalendar'
 import dayjs from 'dayjs'
 
 const { Panel } = Collapse
@@ -14,7 +15,7 @@ const MySchedules = () => {
     const navigate = useNavigate()
     const [loading, setLoading] = useState(false)
     const [schedules, setSchedules] = useState([])
-    const [viewingSchedule, setViewingSchedule] = useState(null)
+    const [selectedSchedule, setSelectedSchedule] = useState(null)
     const [modalVisible, setModalVisible] = useState(false)
     const [failedClasses, setFailedClasses] = useState([])
     const [showReplacements, setShowReplacements] = useState(false)
@@ -35,6 +36,10 @@ const MySchedules = () => {
             const response = await studentAPI.getMySchedules(user.id, null)
             console.log('Schedules loaded:', response.data)
             setSchedules(response.data)
+            // Auto-select first schedule
+            if (response.data.length > 0 && !selectedSchedule) {
+                handleSelectSchedule(response.data[0])
+            }
         } catch (error) {
             console.error('Error loading schedules:', error.response || error)
             message.error('Không thể tải lịch học: ' + (error.response?.data || error.message))
@@ -43,22 +48,34 @@ const MySchedules = () => {
         }
     }
 
-    const handleViewSchedule = (schedule) => {
+    const handleSelectSchedule = (schedule) => {
         try {
             const parsedSchedule = JSON.parse(schedule.schedule)
-            setViewingSchedule({
+            // Add unique keys to each schedule item if not present
+            const scheduleDataWithKeys = parsedSchedule.map((item, index) => ({
+                ...item,
+                uniqueKey: item.id || `${item.courseName}-${item.classNumber}-${item.dayOfWeek}-${item.periods}-${index}`
+            }))
+            setSelectedSchedule({
                 ...schedule,
-                scheduleData: parsedSchedule
+                scheduleData: scheduleDataWithKeys
             })
             setFailedClasses([])
             setShowReplacements(false)
             setReplacementClasses({})
             setSelectedReplacements({})
-            setModalVisible(true)
         } catch (error) {
             message.error('Không thể hiển thị lịch học')
             console.error(error)
         }
+    }
+
+    const handleOpenEditModal = () => {
+        if (!selectedSchedule) {
+            message.warning('Vui lòng chọn một lịch học')
+            return
+        }
+        setModalVisible(true)
     }
 
     const handleDeleteSchedule = async (scheduleId) => {
@@ -72,6 +89,9 @@ const MySchedules = () => {
                 try {
                     await studentAPI.deleteSchedule(scheduleId)
                     message.success('Đã xóa lịch học')
+                    if (selectedSchedule?.id === scheduleId) {
+                        setSelectedSchedule(null)
+                    }
                     loadSchedules()
                 } catch (error) {
                     message.error('Không thể xóa lịch học')
@@ -81,12 +101,12 @@ const MySchedules = () => {
         })
     }
 
-    const handleToggleFailedClass = (classId) => {
+    const handleToggleFailedClass = (uniqueKey) => {
         setFailedClasses(prev => {
-            if (prev.includes(classId)) {
-                return prev.filter(id => id !== classId)
+            if (prev.includes(uniqueKey)) {
+                return prev.filter(key => key !== uniqueKey)
             } else {
-                return [...prev, classId]
+                return [...prev, uniqueKey]
             }
         })
     }
@@ -97,8 +117,8 @@ const MySchedules = () => {
             return
         }
 
-        const failedClassesData = viewingSchedule.scheduleData.filter(
-            s => failedClasses.includes(s.id)
+        const failedClassesData = selectedSchedule.scheduleData.filter(
+            s => failedClasses.includes(s.uniqueKey)
         )
 
         const failedCourseNames = [...new Set(failedClassesData.map(s => s.courseName))]
@@ -124,7 +144,7 @@ const MySchedules = () => {
             // Initialize selected replacements
             const initialSelections = {}
             failedClassesData.forEach(failedClass => {
-                initialSelections[failedClass.id] = null
+                initialSelections[failedClass.uniqueKey] = null
             })
             setSelectedReplacements(initialSelections)
 
@@ -146,7 +166,7 @@ const MySchedules = () => {
 
     const handleSaveNewSchedule = async () => {
         // Check if all failed classes have replacements
-        const allSelected = failedClasses.every(id => selectedReplacements[id])
+        const allSelected = failedClasses.every(key => selectedReplacements[key])
 
         if (!allSelected) {
             message.warning('Vui lòng chọn lớp thay thế cho tất cả các lớp bị lỗi')
@@ -154,13 +174,13 @@ const MySchedules = () => {
         }
 
         // Build new schedule
-        const newScheduleData = viewingSchedule.scheduleData.filter(
-            s => !failedClasses.includes(s.id)
+        const newScheduleData = selectedSchedule.scheduleData.filter(
+            s => !failedClasses.includes(s.uniqueKey)
         )
 
         // Add replacement classes
-        failedClasses.forEach(failedId => {
-            const replacement = selectedReplacements[failedId]
+        failedClasses.forEach(failedKey => {
+            const replacement = selectedReplacements[failedKey]
             if (replacement) {
                 newScheduleData.push(replacement)
             }
@@ -188,13 +208,29 @@ const MySchedules = () => {
                     weeks: s.weeks,
                     capacity: s.capacity
                 })),
-                parsedPrompt: viewingSchedule.parsedPrompt
+                parsedPrompt: selectedSchedule.parsedPrompt
             }
 
             // Update existing schedule instead of creating new one
-            await studentAPI.updateSchedule(viewingSchedule.id, updateData)
+            await studentAPI.updateSchedule(selectedSchedule.id, updateData)
+
+            // Update selectedSchedule with new data immediately
+            const newScheduleDataWithKeys = newScheduleData.map((item, index) => ({
+                ...item,
+                uniqueKey: item.id || `${item.courseName}-${item.classNumber}-${item.dayOfWeek}-${item.periods}-${index}`
+            }))
+
+            setSelectedSchedule({
+                ...selectedSchedule,
+                scheduleData: newScheduleDataWithKeys
+            })
+
             message.success('Đã cập nhật lịch thành công!')
             setModalVisible(false)
+            setFailedClasses([])
+            setShowReplacements(false)
+
+            // Reload schedules in background
             loadSchedules()
         } catch (error) {
             message.error('Không thể lưu lịch mới')
@@ -205,16 +241,6 @@ const MySchedules = () => {
     }
 
     const handleAutoReschedule = async () => {
-        const failedClassesData = viewingSchedule.scheduleData.filter(
-            s => failedClasses.includes(s.id)
-        )
-
-        const successfulClassesData = viewingSchedule.scheduleData.filter(
-            s => !failedClasses.includes(s.id)
-        )
-
-        const failedCourseNames = [...new Set(failedClassesData.map(s => s.courseName))]
-
         try {
             setLoading(true)
 
@@ -230,10 +256,10 @@ const MySchedules = () => {
 
     // Get preview schedule (successful + selected replacements)
     const getPreviewSchedule = () => {
-        if (!viewingSchedule) return []
+        if (!selectedSchedule) return []
 
-        const successful = viewingSchedule.scheduleData.filter(
-            s => !failedClasses.includes(s.id)
+        const successful = selectedSchedule.scheduleData.filter(
+            s => !failedClasses.includes(s.uniqueKey)
         )
 
         const replacements = Object.values(selectedReplacements).filter(Boolean)
@@ -245,8 +271,8 @@ const MySchedules = () => {
         <div>
             <h1 style={{ color: 'var(--vku-navy)', fontWeight: 700 }}>Lịch Học Của Tôi</h1>
 
-            <Card style={{ marginTop: 24 }} className="vku-card">
-                {schedules.length === 0 ? (
+            {schedules.length === 0 ? (
+                <Card style={{ marginTop: 24 }} className="vku-card">
                     <Empty
                         description="Chưa có lịch học nào được lưu"
                         image={Empty.PRESENTED_IMAGE_SIMPLE}
@@ -255,64 +281,106 @@ const MySchedules = () => {
                             Bắt đầu xếp lịch
                         </Button>
                     </Empty>
-                ) : (
-                    <List
-                        loading={loading}
-                        dataSource={schedules}
-                        renderItem={(schedule) => (
-                            <List.Item
-                                actions={[
+                </Card>
+            ) : (
+                <div style={{ display: 'flex', gap: 16, marginTop: 24 }}>
+                    {/* Left: Schedule List */}
+                    <Card
+                        style={{ width: 350, flexShrink: 0 }}
+                        className="vku-card"
+                        title="Danh sách lịch học"
+                    >
+                        <List
+                            loading={loading}
+                            dataSource={schedules}
+                            renderItem={(schedule) => (
+                                <List.Item
+                                    style={{
+                                        cursor: 'pointer',
+                                        background: selectedSchedule?.id === schedule.id ? '#e6f7ff' : 'transparent',
+                                        padding: '12px',
+                                        borderRadius: '8px',
+                                        marginBottom: '8px',
+                                        border: selectedSchedule?.id === schedule.id ? '2px solid #1890ff' : '1px solid #f0f0f0'
+                                    }}
+                                    onClick={() => handleSelectSchedule(schedule)}
+                                >
+                                    <List.Item.Meta
+                                        avatar={<CalendarOutlined style={{ fontSize: 24, color: 'var(--vku-red)' }} />}
+                                        title={
+                                            <Space direction="vertical" size={2}>
+                                                <span style={{ fontSize: 14, fontWeight: 600 }}>
+                                                    {schedule.semesterName}
+                                                </span>
+                                                <Tag color="blue" style={{ fontSize: 11 }}>
+                                                    {schedule.academicYear}
+                                                </Tag>
+                                            </Space>
+                                        }
+                                        description={
+                                            <div style={{ fontSize: 12 }}>
+                                                {dayjs(schedule.createdAt).format('DD/MM/YYYY')}
+                                            </div>
+                                        }
+                                    />
+                                </List.Item>
+                            )}
+                        />
+                    </Card>
+
+                    {/* Right: Calendar View */}
+                    <Card
+                        style={{ flex: 1 }}
+                        className="vku-card"
+                        title={
+                            selectedSchedule ? (
+                                <Space>
+                                    <span>Lịch học {selectedSchedule.semesterName}</span>
+                                    <Tag color="blue">{selectedSchedule.academicYear}</Tag>
+                                    {selectedSchedule.parsedPrompt && (
+                                        <Tag color="purple">Tự động</Tag>
+                                    )}
+                                </Space>
+                            ) : 'Chọn lịch học để xem'
+                        }
+                        extra={
+                            selectedSchedule && (
+                                <Space>
                                     <Button
                                         type="primary"
                                         icon={<EyeOutlined />}
-                                        onClick={() => handleViewSchedule(schedule)}
+                                        onClick={handleOpenEditModal}
                                     >
-                                        Xem
-                                    </Button>,
+                                        Sửa lỗi đăng ký
+                                    </Button>
                                     <Button
                                         danger
                                         icon={<DeleteOutlined />}
-                                        onClick={() => handleDeleteSchedule(schedule.id)}
+                                        onClick={() => handleDeleteSchedule(selectedSchedule.id)}
                                     >
                                         Xóa
                                     </Button>
-                                ]}
-                            >
-                                <List.Item.Meta
-                                    avatar={<CalendarOutlined style={{ fontSize: 32, color: 'var(--vku-red)' }} />}
-                                    title={
-                                        <Space>
-                                            <span>Lịch học {schedule.semesterName}</span>
-                                            <Tag color="blue">
-                                                {schedule.academicYear}
-                                            </Tag>
-                                        </Space>
-                                    }
-                                    description={
-                                        <Space direction="vertical" size="small">
-                                            <div>
-                                                Ngày tạo: {dayjs(schedule.createdAt).format('DD/MM/YYYY HH:mm')}
-                                            </div>
-                                            {schedule.parsedPrompt && (
-                                                <div>
-                                                    <Tag color="purple">Tự động</Tag>
-                                                    Prompt: {schedule.parsedPrompt}
-                                                </div>
-                                            )}
-                                        </Space>
-                                    }
-                                />
-                            </List.Item>
+                                </Space>
+                            )
+                        }
+                    >
+                        {selectedSchedule ? (
+                            <MyScheduleCalendar
+                                schedules={selectedSchedule.scheduleData}
+                                failedClasses={[]}
+                            />
+                        ) : (
+                            <Empty description="Chọn một lịch học từ danh sách bên trái" />
                         )}
-                    />
-                )}
-            </Card>
+                    </Card>
+                </div>
+            )}
 
-            {/* View Schedule Modal */}
+            {/* Edit Schedule Modal */}
             <Modal
                 title={
                     <Space>
-                        <span>Chi tiết lịch học</span>
+                        <span>Sửa lỗi đăng ký - {selectedSchedule?.semesterName}</span>
                         {failedClasses.length > 0 && (
                             <Tag color="error">{failedClasses.length} lớp bị lỗi</Tag>
                         )}
@@ -334,7 +402,7 @@ const MySchedules = () => {
                             key="save"
                             type="primary"
                             onClick={handleSaveNewSchedule}
-                            disabled={!failedClasses.every(id => selectedReplacements[id])}
+                            disabled={!failedClasses.every(key => selectedReplacements[key])}
                         >
                             Lưu lịch mới
                         </Button>
@@ -370,7 +438,7 @@ const MySchedules = () => {
                     ]
                 }
             >
-                {viewingSchedule && (
+                {selectedSchedule && (
                     <div>
                         {!showReplacements ? (
                             <>
@@ -388,14 +456,14 @@ const MySchedules = () => {
                                         <strong>Chọn lớp bị lỗi:</strong>
                                     </div>
                                     <Space direction="vertical" style={{ width: '100%' }}>
-                                        {viewingSchedule.scheduleData.map(schedule => (
+                                        {selectedSchedule.scheduleData.map(schedule => (
                                             <Checkbox
-                                                key={schedule.id}
-                                                checked={failedClasses.includes(schedule.id)}
-                                                onChange={() => handleToggleFailedClass(schedule.id)}
+                                                key={schedule.uniqueKey}
+                                                checked={failedClasses.includes(schedule.uniqueKey)}
+                                                onChange={() => handleToggleFailedClass(schedule.uniqueKey)}
                                             >
                                                 <Space>
-                                                    <Tag color={failedClasses.includes(schedule.id) ? 'error' : 'default'}>
+                                                    <Tag color={failedClasses.includes(schedule.uniqueKey) ? 'error' : 'default'}>
                                                         {schedule.courseName}
                                                     </Tag>
                                                     <span>Lớp {schedule.classNumber}</span>
@@ -407,12 +475,9 @@ const MySchedules = () => {
                                     </Space>
                                 </Card>
 
-                                <WeeklyCalendar
-                                    schedules={viewingSchedule.scheduleData}
-                                    confirmedSchedules={viewingSchedule.scheduleData.filter(
-                                        s => !failedClasses.includes(s.id)
-                                    )}
-                                    onSelectSchedule={null}
+                                <MyScheduleCalendar
+                                    schedules={selectedSchedule.scheduleData}
+                                    failedClasses={failedClasses}
                                 />
                             </>
                         ) : (
@@ -429,8 +494,8 @@ const MySchedules = () => {
                                     {/* Left: Replacement Options */}
                                     <div style={{ flex: 1, maxHeight: 600, overflowY: 'auto' }}>
                                         <Collapse defaultActiveKey={Object.keys(replacementClasses)}>
-                                            {viewingSchedule.scheduleData
-                                                .filter(s => failedClasses.includes(s.id))
+                                            {selectedSchedule.scheduleData
+                                                .filter(s => failedClasses.includes(s.uniqueKey))
                                                 .map(failedClass => (
                                                     <Panel
                                                         header={
@@ -438,22 +503,22 @@ const MySchedules = () => {
                                                                 <WarningOutlined style={{ color: '#ff4d4f' }} />
                                                                 <strong>{failedClass.courseName}</strong>
                                                                 <Tag color="error">Lớp {failedClass.classNumber} (Bị lỗi)</Tag>
-                                                                {selectedReplacements[failedClass.id] && (
+                                                                {selectedReplacements[failedClass.uniqueKey] && (
                                                                     <Tag color="success">
-                                                                        → Lớp {selectedReplacements[failedClass.id].classNumber}
+                                                                        → Lớp {selectedReplacements[failedClass.uniqueKey].classNumber}
                                                                     </Tag>
                                                                 )}
                                                             </Space>
                                                         }
-                                                        key={failedClass.id}
+                                                        key={failedClass.uniqueKey}
                                                     >
                                                         <Radio.Group
-                                                            value={selectedReplacements[failedClass.id]?.id}
+                                                            value={selectedReplacements[failedClass.uniqueKey]?.id}
                                                             onChange={(e) => {
                                                                 const selected = replacementClasses[failedClass.courseName]?.find(
                                                                     r => r.id === e.target.value
                                                                 )
-                                                                handleSelectReplacement(failedClass.id, selected)
+                                                                handleSelectReplacement(failedClass.uniqueKey, selected)
                                                             }}
                                                             style={{ width: '100%' }}
                                                         >
