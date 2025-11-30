@@ -1,53 +1,44 @@
 import './WeeklyCalendar.css'
+import { parsePeriods, findConflict } from '../../utils/courseUtils'
 
 const WeeklyCalendar = ({
     schedules,
     confirmedSchedules = [],
     currentCourse = null,
-    onSelectSchedule
+    onSelectSchedule,
+    showConflicts = false
 }) => {
-    const days = ['Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7', 'Chủ nhật']
-    const periods = Array.from({ length: 10 }, (_, i) => i + 1)
 
-    // Parse periods helper
-    const parsePeriods = (periodsStr) => {
-        try {
-            if (typeof periodsStr === 'string') {
-                const cleaned = periodsStr.replace(/[\[\]]/g, '')
-                return cleaned.split(',').map(p => parseInt(p.trim())).filter(p => p <= 10)
-            } else if (Array.isArray(periodsStr)) {
-                return periodsStr.filter(p => p <= 10)
-            }
-            return []
-        } catch (e) {
-            return []
-        }
-    }
+    const days = ['Thứ Hai', 'Thứ Ba', 'Thứ Tư', 'Thứ Năm', 'Thứ Sáu', 'Thứ Bảy', 'Chủ Nhật']
+    const periods = Array.from({ length: 10 }, (_, i) => i + 1)
 
     // Check if schedule is confirmed
     const isConfirmed = (scheduleId) => {
         return confirmedSchedules.some(s => s.id === scheduleId)
     }
 
-    // Check if schedule is from current course
+    // Helper to normalize subtopic for comparison
+    const normalizeSubtopic = (val) => {
+        if (val === null || val === undefined || val === 'null' || val === '') return null
+        return val
+    }
+
+    // Check if schedule is from current course (match both courseName and subtopic)
     const isCurrentCourse = (schedule) => {
-        return currentCourse && schedule.courseName === currentCourse.courseName
+        if (!currentCourse) return false
+        const scheduleSubtopic = normalizeSubtopic(schedule.subtopic)
+        const currentSubtopic = normalizeSubtopic(currentCourse.subtopic)
+
+        return schedule.courseName === currentCourse.courseName && scheduleSubtopic === currentSubtopic
     }
 
     // Check if schedule conflicts
-    const hasConflict = (schedule) => {
+    const hasConflictCheck = (schedule) => {
+        if (!showConflicts) return false
         if (isConfirmed(schedule.id)) return false
-        const schedulePeriods = parsePeriods(schedule.periods)
-        const scheduleDay = schedule.dayOfWeek
 
-        for (const confirmed of confirmedSchedules) {
-            if (confirmed.dayOfWeek === scheduleDay && confirmed.id !== schedule.id) {
-                const confirmedPeriods = parsePeriods(confirmed.periods)
-                const overlap = schedulePeriods.some(p => confirmedPeriods.includes(p))
-                if (overlap) return true
-            }
-        }
-        return false
+        const conflictingSchedule = findConflict(schedule, confirmedSchedules)
+        return conflictingSchedule !== null
     }
 
     // Get course color (15 colors for better distribution)
@@ -122,7 +113,7 @@ const WeeklyCalendar = ({
                     if (canPlace) {
                         const confirmed = isConfirmed(schedule.id)
                         const current = isCurrentCourse(schedule)
-                        const conflict = hasConflict(schedule)
+                        const conflict = hasConflictCheck(schedule)
 
                         const cellData = {
                             schedule,
@@ -202,13 +193,15 @@ const WeeklyCalendar = ({
                                     conflict ? 'conflict' : ''
                                 ].filter(Boolean).join(' ')
 
+                                const canClick = onSelectSchedule && !conflict
+
                                 return (
                                     <td
                                         key={day}
                                         rowSpan={span}
                                         className={classNames}
-                                        onClick={() => onSelectSchedule && onSelectSchedule(schedule)}
-                                        style={{ cursor: onSelectSchedule ? 'pointer' : 'default' }}
+                                        onClick={() => canClick && onSelectSchedule(schedule)}
+                                        style={{ cursor: canClick ? 'pointer' : conflict ? 'not-allowed' : 'default' }}
                                     >
                                         <div className="cell-content">
                                             <div className="course-name">{schedule.courseName}</div>

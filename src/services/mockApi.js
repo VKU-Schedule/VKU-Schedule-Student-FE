@@ -61,11 +61,19 @@ export const mockStudentAPI = {
     return { data: courses }
   },
   
-  getSchedulesByCourse: async (courseName) => {
+  getSchedulesByCourse: async (courseName, subtopic) => {
     await delay()
-    const schedules = mockSchedules.filter(s => 
-      s.courseName.toLowerCase().includes(courseName.toLowerCase())
+    let schedules = mockSchedules.filter(s => 
+      s.courseName.toLowerCase() === courseName.toLowerCase()
     )
+    
+    // Filter by subtopic if provided
+    if (subtopic !== undefined && subtopic !== null && subtopic !== 'null') {
+      schedules = schedules.filter(s => s.subtopic === subtopic)
+    } else {
+      schedules = schedules.filter(s => s.subtopic === null || s.subtopic === undefined)
+    }
+    
     return { data: schedules }
   },
   

@@ -1,14 +1,18 @@
 import { useState, useEffect } from 'react'
-import { useLocation } from 'react-router-dom'
-import { Card, Tabs, Button, Space, message, List, Tag, Spin, Alert } from 'antd'
+import { useLocation, useNavigate } from 'react-router-dom'
+import { Card, Tabs, Button, Space, message, List, Tag, Spin, Alert, Modal, Select } from 'antd'
 import { SaveOutlined, DeleteOutlined, CheckCircleOutlined, WarningOutlined } from '@ant-design/icons'
 import { studentAPI } from '../services/api'
+import { useAuth } from '../contexts/AuthContext'
 import WeeklyCalendar from '../components/Schedule/WeeklyCalendar'
 import CourseSelector from '../components/Course/CourseSelector'
 import CourseSearch from '../components/Course/CourseSearch'
+import { formatCourseName, parsePeriods, findConflict } from '../utils/courseUtils'
 
 const ManualSchedule = () => {
     const location = useLocation()
+    const navigate = useNavigate()
+    const { user } = useAuth()
     const selectedCoursesFromPrev = location.state?.selectedCourses || []
 
     // Reschedule mode data
@@ -23,6 +27,26 @@ const ManualSchedule = () => {
     const [allSchedules, setAllSchedules] = useState([])
     const [confirmedSchedules, setConfirmedSchedules] = useState(rescheduleMode ? successfulClasses : [])
     const [viewMode, setViewMode] = useState('selecting') // 'selecting' or 'final'
+
+    // Save schedule modal
+    const [saveModalVisible, setSaveModalVisible] = useState(false)
+    const [saving, setSaving] = useState(false)
+    const [academicYears, setAcademicYears] = useState([])
+    const [semesters, setSemesters] = useState([])
+    const [selectedAcademicYear, setSelectedAcademicYear] = useState(null)
+    const [selectedSemester, setSelectedSemester] = useState(null)
+
+    // Helper to normalize subtopic for comparison (null, undefined, 'null', '' all become null)
+    const normalizeSubtopic = (val) => {
+        if (val === null || val === undefined || val === 'null' || val === '') return null
+        return val
+    }
+
+    // Helper to check if two courses match (same courseName and subtopic)
+    const isSameCourse = (course1, course2) => {
+        return course1.courseName === course2.courseName &&
+            normalizeSubtopic(course1.subtopic) === normalizeSubtopic(course2.subtopic)
+    }
 
     // Load schedules for pre-selected courses or reschedule mode
     useEffect(() => {
@@ -49,7 +73,6 @@ const ManualSchedule = () => {
             message.success(`Đã load ${combinedSchedules.length} lớp thay thế cho ${failedCourseNames.length} môn bị lỗi`)
         } catch (error) {
             message.error('Không thể tải lịch học')
-            console.error(error)
         } finally {
             setLoading(false)
         }
@@ -59,14 +82,13 @@ const ManualSchedule = () => {
         setLoading(true)
         try {
             const allSchedulesPromises = courses.map(course =>
-                studentAPI.getSchedulesByCourse(course.courseName)
+                studentAPI.getSchedulesByCourse(course.courseName, course.subtopic)
             )
             const results = await Promise.all(allSchedulesPromises)
             const combinedSchedules = results.flatMap(r => r.data)
             setAllSchedules(combinedSchedules)
         } catch (error) {
             message.error('Không thể tải lịch học')
-            console.error(error)
         } finally {
             setLoading(false)
         }
@@ -81,16 +103,15 @@ const ManualSchedule = () => {
         }
 
         setSelectedCourses([...selectedCourses, course])
-        message.success(`Đã thêm môn: ${course.courseName}`)
+        message.success(`Đã thêm môn: ${formatCourseName(course.courseName, course.subtopic)}`)
 
         // Load schedules for this course
         setLoading(true)
         try {
-            const response = await studentAPI.getSchedulesByCourse(course.courseName)
+            const response = await studentAPI.getSchedulesByCourse(course.courseName, course.subtopic)
             setAllSchedules([...allSchedules, ...response.data])
         } catch (error) {
             message.error('Không thể tải lịch học cho môn này')
-            console.error(error)
         } finally {
             setLoading(false)
         }
@@ -103,9 +124,9 @@ const ManualSchedule = () => {
         // Remove course
         setSelectedCourses(selectedCourses.filter(c => c.id !== courseId))
 
-        // Remove all schedules of this course
-        setAllSchedules(allSchedules.filter(s => s.courseName !== course.courseName))
-        setConfirmedSchedules(confirmedSchedules.filter(s => s.courseName !== course.courseName))
+        // Remove all schedules of this course (match both courseName and subtopic)
+        setAllSchedules(allSchedules.filter(s => !isSameCourse(s, course)))
+        setConfirmedSchedules(confirmedSchedules.filter(s => !isSameCourse(s, course)))
 
         // If removing current course, clear it
         if (currentCourse && currentCourse.id === courseId) {
@@ -126,20 +147,39 @@ const ManualSchedule = () => {
             return
         }
 
-        // Check if it's from the current course
-        const isCurrentCourse = currentCourse && schedule.courseName === currentCourse.courseName
+        // Check if it's from the current course (match both courseName and subtopic)
+        const isCurrentCourse = currentCourse && isSameCourse(schedule, currentCourse)
 
         if (isCurrentCourse) {
             // Check for conflicts with confirmed schedules
-            const hasConflict = checkConflict(schedule, confirmedSchedules)
+            const conflictInfo = checkConflict(schedule, confirmedSchedules)
 
-            if (hasConflict) {
-                message.warning('Lớp này bị trùng lịch với lớp đã chọn!')
+            if (conflictInfo) {
+                const conflictingSchedule = findConflict(schedule, confirmedSchedules)
+
+                if (conflictingSchedule) {
+                    message.error({
+                        content: (
+                            <div>
+                                <strong>⚠️ Trùng lịch!</strong>
+                                <div style={{ marginTop: 8 }}>
+                                    Lớp này trùng với: <strong>{formatCourseName(conflictingSchedule.courseName, conflictingSchedule.subtopic)}</strong>
+                                </div>
+                                <div style={{ marginTop: 4, fontSize: 12, color: '#666' }}>
+                                    {schedule.dayOfWeek} - Tiết {schedule.periods}
+                                </div>
+                            </div>
+                        ),
+                        duration: 4
+                    })
+                } else {
+                    message.warning('Lớp này bị trùng lịch với lớp đã chọn!')
+                }
                 return
             }
 
-            // Remove other confirmed schedules of the same course
-            const otherConfirmed = confirmedSchedules.filter(s => s.courseName !== schedule.courseName)
+            // Remove other confirmed schedules of the same course (match both courseName and subtopic)
+            const otherConfirmed = confirmedSchedules.filter(s => !isSameCourse(s, schedule))
             setConfirmedSchedules([...otherConfirmed, schedule])
             message.success('Đã chọn lớp')
         } else {
@@ -156,16 +196,16 @@ const ManualSchedule = () => {
 
         setCurrentCourse(course)
 
-        // Load schedules for this course if not loaded
-        const courseSchedules = allSchedules.filter(s => s.courseName === course.courseName)
+        // Load schedules for this course if not loaded (match both courseName and subtopic)
+        const courseSchedules = allSchedules.filter(s => isSameCourse(s, course))
+
         if (courseSchedules.length === 0) {
             setLoading(true)
             try {
-                const response = await studentAPI.getSchedulesByCourse(course.courseName)
+                const response = await studentAPI.getSchedulesByCourse(course.courseName, course.subtopic)
                 setAllSchedules([...allSchedules, ...response.data])
             } catch (error) {
                 message.error('Không thể tải lịch học')
-                console.error(error)
             } finally {
                 setLoading(false)
             }
@@ -173,32 +213,7 @@ const ManualSchedule = () => {
     }
 
     const checkConflict = (newSchedule, existingSchedules) => {
-        const parsePeriods = (periodsStr) => {
-            try {
-                if (typeof periodsStr === 'string') {
-                    const cleaned = periodsStr.replace(/[\[\]]/g, '')
-                    return cleaned.split(',').map(p => parseInt(p.trim()))
-                }
-                return periodsStr || []
-            } catch {
-                return []
-            }
-        }
-
-        const newPeriods = parsePeriods(newSchedule.periods)
-        const newDay = newSchedule.dayOfWeek
-
-        for (const existing of existingSchedules) {
-            if (existing.dayOfWeek === newDay) {
-                const existingPeriods = parsePeriods(existing.periods)
-                const overlap = newPeriods.some(p => existingPeriods.includes(p))
-                if (overlap) {
-                    return true
-                }
-            }
-        }
-
-        return false
+        return findConflict(newSchedule, existingSchedules) !== null
     }
 
     const handleSaveSchedule = async () => {
@@ -207,7 +222,95 @@ const ManualSchedule = () => {
             return
         }
 
-        message.info('Chức năng lưu lịch đang phát triển. Cần chọn học kỳ trước.')
+        // Load academic years for modal
+        try {
+            const response = await studentAPI.getAcademicYears()
+            setAcademicYears(response.data)
+            setSaveModalVisible(true)
+        } catch (error) {
+            message.error('Không thể tải danh sách năm học')
+        }
+    }
+
+    const handleAcademicYearChange = async (value) => {
+        setSelectedAcademicYear(value)
+        setSelectedSemester(null)
+        setSemesters([])
+
+        if (!value) return
+
+        try {
+            const response = await studentAPI.getSemesters(value)
+            setSemesters(response.data)
+        } catch (error) {
+            message.error('Không thể tải danh sách học kỳ')
+        }
+    }
+
+    const handleConfirmSave = async () => {
+        if (!selectedSemester) {
+            message.warning('Vui lòng chọn học kỳ')
+            return
+        }
+
+        if (!user || !user.id) {
+            message.error('Không tìm thấy thông tin người dùng. Vui lòng đăng nhập lại.')
+            return
+        }
+
+        setSaving(true)
+        try {
+            // Convert Schedule entities to ScheduleDTO format
+            const scheduleDTOs = confirmedSchedules.map(schedule => ({
+                courseName: schedule.courseName,
+                classNumber: schedule.classNumber,
+                language: schedule.language,
+                major: schedule.major,
+                classGroup: schedule.classGroup,
+                subtopic: schedule.subtopic,
+                instructor: schedule.instructor,
+                dayOfWeek: schedule.dayOfWeek,
+                periods: schedule.periods,
+                location: schedule.location,
+                roomNumber: schedule.roomNumber,
+                weeks: schedule.weeks,
+                capacity: schedule.capacity
+            }))
+
+            const saveRequest = {
+                userId: user.id,
+                semesterId: selectedSemester,
+                schedules: scheduleDTOs,
+                parsedPrompt: null // Manual schedule, no prompt
+            }
+
+            await studentAPI.saveSchedule(saveRequest)
+
+            message.success({
+                content: 'Đã lưu lịch học thành công!',
+                duration: 3
+            })
+
+            setSaveModalVisible(false)
+            setSelectedAcademicYear(null)
+            setSelectedSemester(null)
+
+            // Navigate to my schedules page after 1 second
+            setTimeout(() => {
+                navigate('/my-schedules')
+            }, 1000)
+        } catch (error) {
+            message.error('Không thể lưu lịch học: ' + (error.response?.data || error.message))
+        } finally {
+            setSaving(false)
+        }
+    }
+
+    const handleCancelSave = () => {
+        setSaveModalVisible(false)
+        setSelectedAcademicYear(null)
+        setSelectedSemester(null)
+        setSemesters([])
     }
 
     const tabItems = [
@@ -241,10 +344,11 @@ const ManualSchedule = () => {
         // If selecting and a course is active
         if (currentCourse) {
             // Show all schedules of current course (includes both confirmed and unconfirmed)
-            const currentCourseSchedules = allSchedules.filter(s => s.courseName === currentCourse.courseName)
+            // Match both courseName and subtopic
+            const currentCourseSchedules = allSchedules.filter(s => isSameCourse(s, currentCourse))
 
             // Also show confirmed schedules from other courses
-            const otherConfirmedSchedules = confirmedSchedules.filter(s => s.courseName !== currentCourse.courseName)
+            const otherConfirmedSchedules = confirmedSchedules.filter(s => !isSameCourse(s, currentCourse))
 
             return [...otherConfirmedSchedules, ...currentCourseSchedules]
         }
@@ -336,7 +440,7 @@ const ManualSchedule = () => {
                     <div style={{ marginBottom: 16 }}>
                         {selectedCourses.map((course, index) => {
                             const isCurrentCourse = currentCourse && currentCourse.id === course.id
-                            const hasConfirmedClass = confirmedSchedules.some(s => s.courseName === course.courseName)
+                            const hasConfirmedClass = confirmedSchedules.some(s => isSameCourse(s, course))
 
                             return (
                                 <span
@@ -350,7 +454,7 @@ const ManualSchedule = () => {
                                     }}
                                 >
                                     {hasConfirmedClass && <CheckCircleOutlined style={{ marginRight: 4 }} />}
-                                    {course.courseName}
+                                    {formatCourseName(course.courseName, course.subtopic)}
                                     <Button
                                         type="text"
                                         size="small"
@@ -383,7 +487,7 @@ const ManualSchedule = () => {
                                 <Tag color="green">Lịch cuối cùng</Tag>
                             )}
                             {viewMode === 'selecting' && currentCourse && (
-                                <Tag color="blue">Đang chọn: {currentCourse.courseName}</Tag>
+                                <Tag color="blue">Đang chọn: {formatCourseName(currentCourse.courseName, currentCourse.subtopic)}</Tag>
                             )}
                         </Space>
                     }
@@ -418,6 +522,7 @@ const ManualSchedule = () => {
                             confirmedSchedules={confirmedSchedules}
                             currentCourse={viewMode === 'selecting' ? currentCourse : null}
                             onSelectSchedule={viewMode === 'selecting' ? handleScheduleClick : null}
+                            showConflicts={viewMode === 'selecting'}
                         />
                     </Spin>
                 </Card>
@@ -477,6 +582,88 @@ const ManualSchedule = () => {
                     />
                 </Card>
             )}
+
+            {/* Save Schedule Modal */}
+            <Modal
+                title="Lưu lịch học"
+                open={saveModalVisible}
+                onOk={handleConfirmSave}
+                onCancel={handleCancelSave}
+                confirmLoading={saving}
+                okText="Lưu lịch"
+                cancelText="Hủy"
+                width={500}
+            >
+                <Space direction="vertical" style={{ width: '100%' }} size="middle">
+                    <div>
+                        <p style={{ marginBottom: 8, fontWeight: 500 }}>
+                            Bạn đang lưu <strong>{confirmedSchedules.length}</strong> lớp học
+                        </p>
+                        <p style={{ marginBottom: 16, color: '#666', fontSize: 14 }}>
+                            Vui lòng chọn học kỳ để lưu lịch học này
+                        </p>
+                    </div>
+
+                    <div>
+                        <label style={{ display: 'block', marginBottom: 8, fontWeight: 500 }}>
+                            Năm học <span style={{ color: 'red' }}>*</span>
+                        </label>
+                        <Select
+                            placeholder="Chọn năm học"
+                            style={{ width: '100%' }}
+                            value={selectedAcademicYear}
+                            onChange={handleAcademicYearChange}
+                            options={academicYears.map(y => ({
+                                label: y.yearName,
+                                value: y.id
+                            }))}
+                        />
+                    </div>
+
+                    <div>
+                        <label style={{ display: 'block', marginBottom: 8, fontWeight: 500 }}>
+                            Học kỳ <span style={{ color: 'red' }}>*</span>
+                        </label>
+                        <Select
+                            placeholder="Chọn học kỳ"
+                            style={{ width: '100%' }}
+                            value={selectedSemester}
+                            onChange={setSelectedSemester}
+                            disabled={!selectedAcademicYear}
+                            options={semesters.map(s => ({
+                                label: s.semesterName,
+                                value: s.id
+                            }))}
+                        />
+                    </div>
+
+                    {confirmedSchedules.length > 0 && (
+                        <div style={{
+                            marginTop: 16,
+                            padding: 12,
+                            background: '#f5f5f5',
+                            borderRadius: 8,
+                            maxHeight: 200,
+                            overflowY: 'auto'
+                        }}>
+                            <p style={{ fontWeight: 500, marginBottom: 8 }}>Danh sách lớp:</p>
+                            {confirmedSchedules.map((schedule, index) => (
+                                <div key={index} style={{
+                                    fontSize: 13,
+                                    marginBottom: 4,
+                                    padding: '4px 0'
+                                }}>
+                                    • {formatCourseName(schedule.courseName, schedule.subtopic)}
+                                    {schedule.classNumber && ` (Lớp ${schedule.classNumber})`}
+                                    <span style={{ color: '#666', marginLeft: 8 }}>
+                                        - {schedule.dayOfWeek}, Tiết {schedule.periods}
+                                    </span>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </Space>
+            </Modal>
         </div>
     )
 }

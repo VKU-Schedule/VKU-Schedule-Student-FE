@@ -1,9 +1,10 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Card, Tabs, List, Button, Tag, Space, message, Empty } from 'antd'
+import { Card, Tabs, List, Button, Tag, Space, message } from 'antd'
 import { DeleteOutlined, ThunderboltOutlined, EditOutlined, CheckCircleOutlined } from '@ant-design/icons'
 import CourseSelector from '../components/Course/CourseSelector'
 import CourseSearch from '../components/Course/CourseSearch'
+import { formatCourseName } from '../utils/courseUtils'
 
 const SelectCourses = () => {
     const navigate = useNavigate()
@@ -109,8 +110,7 @@ const SelectCourses = () => {
                         <div style={{ marginBottom: 24 }}>
                             {selectedCourses.map((course, index) => (
                                 <span key={course.id} className={`course-chip ${getChipColor(index)}`}>
-                                    {course.courseName}
-                                    {course.subtopic && ` - ${course.subtopic}`}
+                                    {formatCourseName(course.courseName, course.subtopic)}
                                     <Button
                                         type="text"
                                         size="small"

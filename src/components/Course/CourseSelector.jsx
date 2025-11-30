@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Select, Space, Spin, Alert } from 'antd'
 import { studentAPI } from '../../services/api'
+import { formatCourseName } from '../../utils/courseUtils'
 
 const CourseSelector = ({ onCourseSelect, value }) => {
     const [loading, setLoading] = useState(false)
@@ -32,7 +33,6 @@ const CourseSelector = ({ onCourseSelect, value }) => {
             setAcademicYears(response.data)
         } catch (err) {
             setError('Không thể tải danh sách năm học')
-            console.error(err)
         } finally {
             setLoading(false)
         }
@@ -60,7 +60,6 @@ const CourseSelector = ({ onCourseSelect, value }) => {
             setSemesters(response.data)
         } catch (err) {
             setError('Không thể tải danh sách học kỳ')
-            console.error(err)
         } finally {
             setLoading(false)
         }
@@ -87,7 +86,6 @@ const CourseSelector = ({ onCourseSelect, value }) => {
             setCohorts(response.data)
         } catch (err) {
             setError('Không thể tải danh sách khóa')
-            console.error(err)
         } finally {
             setLoading(false)
         }
@@ -112,7 +110,6 @@ const CourseSelector = ({ onCourseSelect, value }) => {
             setClasses(response.data)
         } catch (err) {
             setError('Không thể tải danh sách lớp')
-            console.error(err)
         } finally {
             setLoading(false)
         }
@@ -135,7 +132,6 @@ const CourseSelector = ({ onCourseSelect, value }) => {
             setCourses(response.data)
         } catch (err) {
             setError('Không thể tải danh sách môn học')
-            console.error(err)
         } finally {
             setLoading(false)
         }
@@ -227,7 +223,7 @@ const CourseSelector = ({ onCourseSelect, value }) => {
                     showSearch
                     optionFilterProp="label"
                     options={courses.map(c => ({
-                        label: `${c.courseName}${c.subtopic ? ` - ${c.subtopic}` : ''}`,
+                        label: formatCourseName(c.courseName, c.subtopic),
                         value: c.id
                     }))}
                 />

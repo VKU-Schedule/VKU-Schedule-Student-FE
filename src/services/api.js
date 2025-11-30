@@ -28,12 +28,12 @@ const useMockOrReal = (mockFn, realFn) => {
 export const authAPI = {
   login: (credential) => useMockOrReal(
     () => mockAuthAPI.login(credential),
-    () => api.post('/auth/login', { credential })
+    () => api.post('/api/auth/login', { credential })
   )(),
   
   getCurrentUser: () => useMockOrReal(
     () => mockAuthAPI.getCurrentUser(),
-    () => api.get('/auth/user')
+    () => api.get('/api/auth/user')
   )()
 }
 
@@ -42,49 +42,49 @@ export const studentAPI = {
   // Get academic years
   getAcademicYears: () => useMockOrReal(
     () => mockStudentAPI.getAcademicYears(),
-    () => api.get('/student/academic-years')
+    () => api.get('/api/student/academic-years')
   )(),
   
   // Get semesters by academic year
   getSemesters: (academicYearId) => useMockOrReal(
     () => mockStudentAPI.getSemesters(academicYearId),
-    () => api.get('/student/semesters', { params: { academicYearId } })
+    () => api.get('/api/student/semesters', { params: { academicYearId } })
   )(),
   
   // Get cohorts by semester
   getCohorts: (semesterId) => useMockOrReal(
     () => mockStudentAPI.getCohorts(semesterId),
-    () => api.get('/student/cohorts', { params: { semesterId } })
+    () => api.get('/api/student/cohorts', { params: { semesterId } })
   )(),
   
   // Get classes by cohort
   getClasses: (cohortId) => useMockOrReal(
     () => mockStudentAPI.getClasses(cohortId),
-    () => api.get('/student/classes', { params: { cohortId } })
+    () => api.get('/api/student/classes', { params: { cohortId } })
   )(),
   
   // Get courses by class
   getCourses: (classId) => useMockOrReal(
     () => mockStudentAPI.getCourses(classId),
-    () => api.get('/student/courses', { params: { classId } })
+    () => api.get('/api/student/courses', { params: { classId } })
   )(),
   
   // Get schedules by course
-  getSchedulesByCourse: (courseName) => useMockOrReal(
-    () => mockStudentAPI.getSchedulesByCourse(courseName),
-    () => api.get('/student/schedules/by-course', { params: { courseName } })
+  getSchedulesByCourse: (courseName, subtopic) => useMockOrReal(
+    () => mockStudentAPI.getSchedulesByCourse(courseName, subtopic),
+    () => api.get('/api/student/schedules/by-course', { params: { courseName, subtopic } })
   )(),
   
   // Save schedule
   saveSchedule: (data) => useMockOrReal(
     () => mockStudentAPI.saveSchedule(data),
-    () => api.post('/student/schedules/save', data)
+    () => api.post('/api/student/schedules/save', data)
   )(),
   
   // Get my schedules
   getMySchedules: (userId, semesterId) => useMockOrReal(
     () => mockStudentAPI.getMySchedules(userId, semesterId),
-    () => api.get('/student/schedules/my-schedules', { 
+    () => api.get('/api/student/schedules/my-schedules', { 
       params: { userId, semesterId } 
     })
   )(),
@@ -92,7 +92,7 @@ export const studentAPI = {
   // Delete schedule
   deleteSchedule: (scheduleId) => useMockOrReal(
     () => mockStudentAPI.deleteSchedule(scheduleId),
-    () => api.delete(`/student/schedules/${scheduleId}`)
+    () => api.delete(`/api/student/schedules/${scheduleId}`)
   )()
 }
 
