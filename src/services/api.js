@@ -3,6 +3,7 @@ import { mockAuthAPI, mockStudentAPI, mockSearchAPI } from './mockApi'
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api'
 const SEARCH_API_URL = import.meta.env.VITE_SEARCH_API_URL || 'http://localhost:8082'
+const OPTIMIZATION_API_URL = import.meta.env.VITE_OPTIMIZATION_API_URL || 'http://localhost:8000'
 const USE_MOCK = import.meta.env.VITE_USE_MOCK === 'true'
 
 const api = axios.create({
@@ -18,6 +19,14 @@ const searchApi = axios.create({
   headers: {
     'Content-Type': 'application/json'
   }
+})
+
+const optimizationApi = axios.create({
+  baseURL: OPTIMIZATION_API_URL,
+  headers: {
+    'Content-Type': 'application/json'
+  },
+  timeout: 60000 // 60 seconds timeout for optimization
 })
 
 // Helper to switch between mock and real API
@@ -119,6 +128,17 @@ export const searchAPI = {
     () => mockSearchAPI.searchBySubtopic(subtopic),
     () => searchApi.get('/api/courses/search/by-subtopic', { params: { subtopic } })
   )()
+}
+
+// Optimization API (NSGA-II)
+export const optimizationAPI = {
+  // Optimize schedule using NSGA-II algorithm
+  optimizeSchedule: (queries, prompt) => {
+    return optimizationApi.post('/api/convert', {
+      queries,
+      prompt
+    })
+  }
 }
 
 export default api

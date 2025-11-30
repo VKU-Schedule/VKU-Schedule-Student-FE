@@ -1,14 +1,13 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Card, List, Button, Empty, Tag, Space, Modal, message, Checkbox, Alert, Collapse, Radio } from 'antd'
-import { DeleteOutlined, EyeOutlined, CalendarOutlined, WarningOutlined, ThunderboltOutlined, CheckCircleOutlined } from '@ant-design/icons'
-import { studentAPI } from '../services/api'
+import { Card, List, Button, Empty, Tag, Space, Modal, message } from 'antd'
+import { DeleteOutlined, EyeOutlined, CalendarOutlined } from '@ant-design/icons'
+import { studentAPI, optimizationAPI } from '../services/api'
 import { useAuth } from '../contexts/AuthContext'
-import WeeklyCalendar from '../components/Schedule/WeeklyCalendar'
 import MyScheduleCalendar from '../components/Schedule/MyScheduleCalendar'
+import OptimizationModal from '../components/Schedule/OptimizationModal'
+import EditScheduleModal from '../components/Schedule/EditScheduleModal'
 import dayjs from 'dayjs'
-
-const { Panel } = Collapse
 
 const MySchedules = () => {
     const { user } = useAuth()
@@ -22,6 +21,11 @@ const MySchedules = () => {
     const [replacementClasses, setReplacementClasses] = useState({})
     const [loadingReplacements, setLoadingReplacements] = useState(false)
     const [selectedReplacements, setSelectedReplacements] = useState({})
+    const [optimizationModalVisible, setOptimizationModalVisible] = useState(false)
+    const [optimizationPrompt, setOptimizationPrompt] = useState('')
+    const [optimizedSchedules, setOptimizedSchedules] = useState([])
+    const [selectedOptimizedSchedule, setSelectedOptimizedSchedule] = useState(null)
+    const [optimizing, setOptimizing] = useState(false)
 
     useEffect(() => {
         if (user) {
@@ -241,14 +245,161 @@ const MySchedules = () => {
     }
 
     const handleAutoReschedule = async () => {
+        if (failedClasses.length === 0) {
+            message.warning('Vui lòng chọn ít nhất một lớp bị lỗi')
+            return
+        }
+
+        // Open optimization modal
+        setOptimizationModalVisible(true)
+        setOptimizationPrompt('Tối ưu hóa lịch học với ít ngày học nhất, tránh trùng lịch')
+    }
+
+    const handleOptimizeWithNSGAII = async () => {
+        if (!optimizationPrompt.trim()) {
+            message.warning('Vui lòng nhập yêu cầu tối ưu hóa')
+            return
+        }
+
+        try {
+            setOptimizing(true)
+
+            // Get failed classes data
+            const failedClassesData = selectedSchedule.scheduleData.filter(
+                s => failedClasses.includes(s.uniqueKey)
+            )
+
+            // Build queries array
+            // If subTopic is empty/null/"null": just courseName
+            // If subTopic has value: courseName @ subTopic
+            const queries = [...new Set(failedClassesData.map(cls => {
+                const subtopic = cls.subtopic
+                if (subtopic && subtopic.trim() && subtopic !== 'null' && subtopic !== 'undefined') {
+                    return `${cls.courseName} @ ${subtopic}`
+                }
+                return cls.courseName
+            }))]
+
+            console.log('Optimization request:', { queries, prompt: optimizationPrompt })
+
+            // Call NSGA-II API
+            const response = await optimizationAPI.optimizeSchedule(queries, optimizationPrompt)
+
+            console.log('Optimization response:', response.data)
+
+            if (response.data && response.data.schedules && response.data.schedules.length > 0) {
+                // Convert API response to our schedule format
+                const convertedSchedules = response.data.schedules.map((scheduleOption, index) => {
+                    const scheduleData = scheduleOption.schedule.map(session => {
+                        // Map API session format to our schedule format
+                        return {
+                            courseName: session.course_name || session.courseName,
+                            classNumber: session.class_index || session.classIndex,
+                            language: session.language,
+                            major: session.field,
+                            classGroup: '', // Not provided by API
+                            subtopic: session.sub_topic || session.subTopic || '',
+                            instructor: session.teacher,
+                            dayOfWeek: session.day,
+                            periods: Array.isArray(session.periods) ? session.periods.join(',') : session.periods,
+                            location: session.area,
+                            roomNumber: session.room,
+                            weeks: '', // Not provided by API
+                            capacity: session.class_size || session.classSize,
+                            uniqueKey: `opt-${index}-${session.course_name}-${session.class_index}-${session.day}`
+                        }
+                    })
+
+                    return {
+                        id: scheduleOption.id || `schedule-${index}`,
+                        score: scheduleOption.score,
+                        scheduleData
+                    }
+                })
+
+                setOptimizedSchedules(convertedSchedules)
+                message.success(`Đã tìm thấy ${convertedSchedules.length} phương án tối ưu`)
+            } else {
+                message.warning('Không tìm thấy phương án tối ưu nào')
+            }
+        } catch (error) {
+            console.error('Optimization error:', error)
+            message.error('Không thể xếp lịch tự động: ' + (error.response?.data?.error || error.message))
+        } finally {
+            setOptimizing(false)
+        }
+    }
+
+    const handleSelectOptimizedSchedule = (schedule) => {
+        setSelectedOptimizedSchedule(schedule)
+    }
+
+    const handleApplyOptimizedSchedule = async () => {
+        if (!selectedOptimizedSchedule) {
+            message.warning('Vui lòng chọn một phương án tối ưu')
+            return
+        }
+
         try {
             setLoading(true)
 
-            // TODO: Call NSGA-II service
-            message.info('Chức năng xếp lịch tự động đang phát triển')
+            // Build new schedule: keep successful classes + add optimized classes
+            const successfulClasses = selectedSchedule.scheduleData.filter(
+                s => !failedClasses.includes(s.uniqueKey)
+            )
+
+            const newScheduleData = [...successfulClasses, ...selectedOptimizedSchedule.scheduleData]
+
+            // Update schedule
+            const updateData = {
+                userId: user.id,
+                semesterId: null,
+                schedules: newScheduleData.map(s => ({
+                    courseName: s.courseName,
+                    classNumber: s.classNumber,
+                    language: s.language,
+                    major: s.major,
+                    classGroup: s.classGroup,
+                    subtopic: s.subtopic,
+                    instructor: s.instructor,
+                    dayOfWeek: s.dayOfWeek,
+                    periods: s.periods,
+                    location: s.location,
+                    roomNumber: s.roomNumber,
+                    weeks: s.weeks,
+                    capacity: s.capacity
+                })),
+                parsedPrompt: optimizationPrompt
+            }
+
+            await studentAPI.updateSchedule(selectedSchedule.id, updateData)
+
+            // Update UI
+            const newScheduleDataWithKeys = newScheduleData.map((item, index) => ({
+                ...item,
+                uniqueKey: item.uniqueKey || `${item.courseName}-${item.classNumber}-${item.dayOfWeek}-${item.periods}-${index}`
+            }))
+
+            setSelectedSchedule({
+                ...selectedSchedule,
+                scheduleData: newScheduleDataWithKeys,
+                parsedPrompt: optimizationPrompt
+            })
+
+            message.success('Đã áp dụng lịch tối ưu thành công!')
+
+            // Close modals and reset state
+            setOptimizationModalVisible(false)
+            setModalVisible(false)
+            setFailedClasses([])
+            setOptimizedSchedules([])
+            setSelectedOptimizedSchedule(null)
+
+            // Reload schedules
+            loadSchedules()
         } catch (error) {
-            message.error('Không thể xếp lịch tự động')
-            console.error(error)
+            console.error('Apply optimization error:', error)
+            message.error('Không thể áp dụng lịch tối ưu')
         } finally {
             setLoading(false)
         }
@@ -376,190 +527,48 @@ const MySchedules = () => {
                 </div>
             )}
 
+            {/* NSGA-II Optimization Modal */}
+            <OptimizationModal
+                visible={optimizationModalVisible}
+                onCancel={() => {
+                    setOptimizationModalVisible(false)
+                    setOptimizedSchedules([])
+                    setSelectedOptimizedSchedule(null)
+                }}
+                optimizing={optimizing}
+                optimizedSchedules={optimizedSchedules}
+                selectedOptimizedSchedule={selectedOptimizedSchedule}
+                onSelectOptimizedSchedule={handleSelectOptimizedSchedule}
+                onApplyOptimizedSchedule={handleApplyOptimizedSchedule}
+                onOptimize={handleOptimizeWithNSGAII}
+                optimizationPrompt={optimizationPrompt}
+                onPromptChange={setOptimizationPrompt}
+                failedClasses={failedClasses}
+                selectedSchedule={selectedSchedule}
+            />
+
             {/* Edit Schedule Modal */}
-            <Modal
-                title={
-                    <Space>
-                        <span>Sửa lỗi đăng ký - {selectedSchedule?.semesterName}</span>
-                        {failedClasses.length > 0 && (
-                            <Tag color="error">{failedClasses.length} lớp bị lỗi</Tag>
-                        )}
-                    </Space>
-                }
-                open={modalVisible}
+            <EditScheduleModal
+                visible={modalVisible}
                 onCancel={() => {
                     setModalVisible(false)
                     setFailedClasses([])
                     setShowReplacements(false)
                 }}
-                width={1400}
-                footer={
-                    showReplacements ? [
-                        <Button key="back" onClick={() => setShowReplacements(false)}>
-                            Quay lại
-                        </Button>,
-                        <Button
-                            key="save"
-                            type="primary"
-                            onClick={handleSaveNewSchedule}
-                            disabled={!failedClasses.every(key => selectedReplacements[key])}
-                        >
-                            Lưu lịch mới
-                        </Button>
-                    ] : [
-                        <Button key="close" onClick={() => {
-                            setModalVisible(false)
-                            setFailedClasses([])
-                        }}>
-                            Đóng
-                        </Button>,
-                        failedClasses.length > 0 && (
-                            <Button
-                                key="manual"
-                                type="default"
-                                icon={<CheckCircleOutlined />}
-                                onClick={handleLoadReplacements}
-                                loading={loadingReplacements}
-                            >
-                                Chọn lớp thay thế
-                            </Button>
-                        ),
-                        failedClasses.length > 0 && (
-                            <Button
-                                key="auto"
-                                type="primary"
-                                danger
-                                icon={<ThunderboltOutlined />}
-                                onClick={handleAutoReschedule}
-                            >
-                                Xếp tự động (NSGA-II)
-                            </Button>
-                        )
-                    ]
-                }
-            >
-                {selectedSchedule && (
-                    <div>
-                        {!showReplacements ? (
-                            <>
-                                <Alert
-                                    message="Đánh dấu lớp bị lỗi đăng ký"
-                                    description="Click vào các lớp bị lỗi khi đăng ký (lớp đầy, trùng lịch, v.v.) để đánh dấu. Sau đó chọn cách xếp lại."
-                                    type="info"
-                                    showIcon
-                                    style={{ marginBottom: 16 }}
-                                />
-
-                                {/* Class Selection List */}
-                                <Card size="small" style={{ marginBottom: 16 }}>
-                                    <div style={{ marginBottom: 8 }}>
-                                        <strong>Chọn lớp bị lỗi:</strong>
-                                    </div>
-                                    <Space direction="vertical" style={{ width: '100%' }}>
-                                        {selectedSchedule.scheduleData.map(schedule => (
-                                            <Checkbox
-                                                key={schedule.uniqueKey}
-                                                checked={failedClasses.includes(schedule.uniqueKey)}
-                                                onChange={() => handleToggleFailedClass(schedule.uniqueKey)}
-                                            >
-                                                <Space>
-                                                    <Tag color={failedClasses.includes(schedule.uniqueKey) ? 'error' : 'default'}>
-                                                        {schedule.courseName}
-                                                    </Tag>
-                                                    <span>Lớp {schedule.classNumber}</span>
-                                                    <span>-</span>
-                                                    <span>{schedule.dayOfWeek}, Tiết {schedule.periods}</span>
-                                                </Space>
-                                            </Checkbox>
-                                        ))}
-                                    </Space>
-                                </Card>
-
-                                <MyScheduleCalendar
-                                    schedules={selectedSchedule.scheduleData}
-                                    failedClasses={failedClasses}
-                                />
-                            </>
-                        ) : (
-                            <>
-                                <Alert
-                                    message="Chọn lớp thay thế"
-                                    description="Chọn lớp thay thế cho từng môn bị lỗi. Lịch bên phải sẽ cập nhật theo lựa chọn của bạn."
-                                    type="success"
-                                    showIcon
-                                    style={{ marginBottom: 16 }}
-                                />
-
-                                <div style={{ display: 'flex', gap: 16 }}>
-                                    {/* Left: Replacement Options */}
-                                    <div style={{ flex: 1, maxHeight: 600, overflowY: 'auto' }}>
-                                        <Collapse defaultActiveKey={Object.keys(replacementClasses)}>
-                                            {selectedSchedule.scheduleData
-                                                .filter(s => failedClasses.includes(s.uniqueKey))
-                                                .map(failedClass => (
-                                                    <Panel
-                                                        header={
-                                                            <Space>
-                                                                <WarningOutlined style={{ color: '#ff4d4f' }} />
-                                                                <strong>{failedClass.courseName}</strong>
-                                                                <Tag color="error">Lớp {failedClass.classNumber} (Bị lỗi)</Tag>
-                                                                {selectedReplacements[failedClass.uniqueKey] && (
-                                                                    <Tag color="success">
-                                                                        → Lớp {selectedReplacements[failedClass.uniqueKey].classNumber}
-                                                                    </Tag>
-                                                                )}
-                                                            </Space>
-                                                        }
-                                                        key={failedClass.uniqueKey}
-                                                    >
-                                                        <Radio.Group
-                                                            value={selectedReplacements[failedClass.uniqueKey]?.id}
-                                                            onChange={(e) => {
-                                                                const selected = replacementClasses[failedClass.courseName]?.find(
-                                                                    r => r.id === e.target.value
-                                                                )
-                                                                handleSelectReplacement(failedClass.uniqueKey, selected)
-                                                            }}
-                                                            style={{ width: '100%' }}
-                                                        >
-                                                            <Space direction="vertical" style={{ width: '100%' }}>
-                                                                {replacementClasses[failedClass.courseName]?.map(replacement => (
-                                                                    <Radio key={replacement.id} value={replacement.id}>
-                                                                        <Space direction="vertical" size="small">
-                                                                            <div>
-                                                                                <Tag color="blue">Lớp {replacement.classNumber}</Tag>
-                                                                                <Tag>{replacement.dayOfWeek}</Tag>
-                                                                                <Tag>Tiết {replacement.periods}</Tag>
-                                                                            </div>
-                                                                            <div style={{ fontSize: 12, color: '#666' }}>
-                                                                                {replacement.location}.{replacement.roomNumber} - {replacement.instructor}
-                                                                            </div>
-                                                                        </Space>
-                                                                    </Radio>
-                                                                ))}
-                                                            </Space>
-                                                        </Radio.Group>
-                                                    </Panel>
-                                                ))}
-                                        </Collapse>
-                                    </div>
-
-                                    {/* Right: Preview Calendar */}
-                                    <div style={{ flex: 1 }}>
-                                        <Card size="small" title="Xem trước lịch mới">
-                                            <WeeklyCalendar
-                                                schedules={getPreviewSchedule()}
-                                                confirmedSchedules={getPreviewSchedule()}
-                                                onSelectSchedule={null}
-                                            />
-                                        </Card>
-                                    </div>
-                                </div>
-                            </>
-                        )}
-                    </div>
-                )}
-            </Modal>
+                selectedSchedule={selectedSchedule}
+                failedClasses={failedClasses}
+                onToggleFailedClass={handleToggleFailedClass}
+                showReplacements={showReplacements}
+                onShowReplacements={handleLoadReplacements}
+                onBackToSelection={() => setShowReplacements(false)}
+                replacementClasses={replacementClasses}
+                selectedReplacements={selectedReplacements}
+                onSelectReplacement={handleSelectReplacement}
+                onSaveNewSchedule={handleSaveNewSchedule}
+                loadingReplacements={loadingReplacements}
+                onAutoReschedule={handleAutoReschedule}
+                previewSchedule={getPreviewSchedule()}
+            />
         </div>
     )
 }

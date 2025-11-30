@@ -3,8 +3,8 @@ import { useNavigate } from 'react-router-dom'
 import {
     BookOutlined,
     CalendarOutlined,
-    RocketOutlined,
-    SaveOutlined
+    SaveOutlined,
+    ThunderboltOutlined
 } from '@ant-design/icons'
 
 const { Title, Paragraph } = Typography
@@ -16,7 +16,7 @@ const Home = () => {
         {
             icon: <BookOutlined style={{ fontSize: 48, color: 'var(--vku-red)' }} />,
             title: 'Chọn môn học',
-            description: 'Chọn các môn học bạn muốn đăng ký trong học kỳ',
+            description: 'Chọn môn học và xếp lịch tự động với NSGA-II hoặc thủ công',
             action: () => navigate('/select-courses'),
             buttonText: 'Bắt đầu',
             gradient: 'linear-gradient(135deg, var(--vku-red-50) 0%, var(--vku-red-100) 100%)'
@@ -28,14 +28,6 @@ const Home = () => {
             action: () => navigate('/manual-schedule'),
             buttonText: 'Xếp lịch',
             gradient: 'linear-gradient(135deg, var(--vku-yellow-50) 0%, var(--vku-yellow-100) 100%)'
-        },
-        {
-            icon: <RocketOutlined style={{ fontSize: 48, color: 'var(--vku-navy)' }} />,
-            title: 'Xếp lịch tự động',
-            description: 'Sử dụng thuật toán NSGA-II để tối ưu hóa lịch học',
-            action: () => navigate('/select-courses'),
-            buttonText: 'Tối ưu',
-            gradient: 'linear-gradient(135deg, var(--vku-navy-50) 0%, var(--vku-navy-100) 100%)'
         },
         {
             icon: <SaveOutlined style={{ fontSize: 48, color: '#52c41a' }} />,
