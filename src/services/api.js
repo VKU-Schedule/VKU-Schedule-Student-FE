@@ -9,7 +9,8 @@ const api = axios.create({
   baseURL: API_BASE_URL,
   headers: {
     'Content-Type': 'application/json'
-  }
+  },
+  withCredentials: true // Important: Send cookies with requests
 })
 
 const searchApi = axios.create({
@@ -93,6 +94,12 @@ export const studentAPI = {
   deleteSchedule: (scheduleId) => useMockOrReal(
     () => mockStudentAPI.deleteSchedule(scheduleId),
     () => api.delete(`/api/student/schedules/${scheduleId}`)
+  )(),
+
+  // Update schedule
+  updateSchedule: (scheduleId, data) => useMockOrReal(
+    () => mockStudentAPI.saveSchedule(data),
+    () => api.put(`/api/student/schedules/${scheduleId}`, data)
   )()
 }
 

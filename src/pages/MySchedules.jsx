@@ -1,75 +1,43 @@
 import { useState, useEffect } from 'react'
-import { Card, Select, Spin, Empty, Button, Space, Tag, Modal, message, List } from 'antd'
-import { DeleteOutlined, EyeOutlined, CalendarOutlined } from '@ant-design/icons'
+import { useNavigate } from 'react-router-dom'
+import { Card, List, Button, Empty, Tag, Space, Modal, message, Checkbox, Alert, Collapse, Radio, Spin } from 'antd'
+import { DeleteOutlined, EyeOutlined, CalendarOutlined, WarningOutlined, ThunderboltOutlined, CheckCircleOutlined } from '@ant-design/icons'
 import { studentAPI } from '../services/api'
 import { useAuth } from '../contexts/AuthContext'
 import WeeklyCalendar from '../components/Schedule/WeeklyCalendar'
-import { formatCourseName } from '../utils/courseUtils'
+import dayjs from 'dayjs'
+
+const { Panel } = Collapse
 
 const MySchedules = () => {
     const { user } = useAuth()
+    const navigate = useNavigate()
     const [loading, setLoading] = useState(false)
-    const [academicYears, setAcademicYears] = useState([])
-    const [semesters, setSemesters] = useState([])
-    const [selectedAcademicYear, setSelectedAcademicYear] = useState(null)
-    const [selectedSemester, setSelectedSemester] = useState(null)
-    const [mySchedules, setMySchedules] = useState([])
+    const [schedules, setSchedules] = useState([])
     const [viewingSchedule, setViewingSchedule] = useState(null)
-    const [viewModalVisible, setViewModalVisible] = useState(false)
+    const [modalVisible, setModalVisible] = useState(false)
+    const [failedClasses, setFailedClasses] = useState([])
+    const [showReplacements, setShowReplacements] = useState(false)
+    const [replacementClasses, setReplacementClasses] = useState({})
+    const [loadingReplacements, setLoadingReplacements] = useState(false)
+    const [selectedReplacements, setSelectedReplacements] = useState({})
 
     useEffect(() => {
-        loadAcademicYears()
-    }, [])
-
-    useEffect(() => {
-        if (selectedSemester && user) {
-            loadMySchedules()
+        if (user) {
+            loadSchedules()
         }
-    }, [selectedSemester, user])
+    }, [user])
 
-    const loadAcademicYears = async () => {
+    const loadSchedules = async () => {
         setLoading(true)
         try {
-            const response = await studentAPI.getAcademicYears()
-            setAcademicYears(response.data)
+            console.log('Loading schedules for user:', user.id)
+            const response = await studentAPI.getMySchedules(user.id, null)
+            console.log('Schedules loaded:', response.data)
+            setSchedules(response.data)
         } catch (error) {
-            message.error('Không thể tải danh sách năm học')
-        } finally {
-            setLoading(false)
-        }
-    }
-
-    const handleAcademicYearChange = async (value) => {
-        setSelectedAcademicYear(value)
-        setSelectedSemester(null)
-        setSemesters([])
-        setMySchedules([])
-
-        if (!value) return
-
-        setLoading(true)
-        try {
-            const response = await studentAPI.getSemesters(value)
-            setSemesters(response.data)
-        } catch (error) {
-            message.error('Không thể tải danh sách học kỳ')
-        } finally {
-            setLoading(false)
-        }
-    }
-
-    const loadMySchedules = async () => {
-        if (!user || !user.id) {
-            message.error('Không tìm thấy thông tin người dùng')
-            return
-        }
-
-        setLoading(true)
-        try {
-            const response = await studentAPI.getMySchedules(user.id, selectedSemester)
-            setMySchedules(response.data)
-        } catch (error) {
-            message.error('Không thể tải lịch học')
+            console.error('Error loading schedules:', error.response || error)
+            message.error('Không thể tải lịch học: ' + (error.response?.data || error.message))
         } finally {
             setLoading(false)
         }
@@ -77,18 +45,23 @@ const MySchedules = () => {
 
     const handleViewSchedule = (schedule) => {
         try {
-            const scheduleData = JSON.parse(schedule.schedule)
+            const parsedSchedule = JSON.parse(schedule.schedule)
             setViewingSchedule({
                 ...schedule,
-                scheduleData
+                scheduleData: parsedSchedule
             })
-            setViewModalVisible(true)
+            setFailedClasses([])
+            setShowReplacements(false)
+            setReplacementClasses({})
+            setSelectedReplacements({})
+            setModalVisible(true)
         } catch (error) {
             message.error('Không thể hiển thị lịch học')
+            console.error(error)
         }
     }
 
-    const handleDeleteSchedule = (scheduleId) => {
+    const handleDeleteSchedule = async (scheduleId) => {
         Modal.confirm({
             title: 'Xác nhận xóa',
             content: 'Bạn có chắc chắn muốn xóa lịch học này?',
@@ -99,12 +72,173 @@ const MySchedules = () => {
                 try {
                     await studentAPI.deleteSchedule(scheduleId)
                     message.success('Đã xóa lịch học')
-                    loadMySchedules()
+                    loadSchedules()
                 } catch (error) {
                     message.error('Không thể xóa lịch học')
+                    console.error(error)
                 }
             }
         })
+    }
+
+    const handleToggleFailedClass = (classId) => {
+        setFailedClasses(prev => {
+            if (prev.includes(classId)) {
+                return prev.filter(id => id !== classId)
+            } else {
+                return [...prev, classId]
+            }
+        })
+    }
+
+    const handleLoadReplacements = async () => {
+        if (failedClasses.length === 0) {
+            message.warning('Vui lòng chọn ít nhất một lớp bị lỗi')
+            return
+        }
+
+        const failedClassesData = viewingSchedule.scheduleData.filter(
+            s => failedClasses.includes(s.id)
+        )
+
+        const failedCourseNames = [...new Set(failedClassesData.map(s => s.courseName))]
+
+        setLoadingReplacements(true)
+        try {
+            const allReplacementsPromises = failedCourseNames.map(courseName => {
+                const failedClass = failedClassesData.find(c => c.courseName === courseName)
+                return studentAPI.getSchedulesByCourse(courseName, failedClass?.subtopic)
+            })
+            const results = await Promise.all(allReplacementsPromises)
+
+            // Group by course name
+            const groupedReplacements = {}
+            results.forEach((result, index) => {
+                const courseName = failedCourseNames[index]
+                groupedReplacements[courseName] = result.data
+            })
+
+            setReplacementClasses(groupedReplacements)
+            setShowReplacements(true)
+
+            // Initialize selected replacements
+            const initialSelections = {}
+            failedClassesData.forEach(failedClass => {
+                initialSelections[failedClass.id] = null
+            })
+            setSelectedReplacements(initialSelections)
+
+            message.success(`Đã load lớp thay thế cho ${failedCourseNames.length} môn`)
+        } catch (error) {
+            message.error('Không thể tải lớp thay thế')
+            console.error(error)
+        } finally {
+            setLoadingReplacements(false)
+        }
+    }
+
+    const handleSelectReplacement = (failedClassId, replacementClass) => {
+        setSelectedReplacements(prev => ({
+            ...prev,
+            [failedClassId]: replacementClass
+        }))
+    }
+
+    const handleSaveNewSchedule = async () => {
+        // Check if all failed classes have replacements
+        const allSelected = failedClasses.every(id => selectedReplacements[id])
+
+        if (!allSelected) {
+            message.warning('Vui lòng chọn lớp thay thế cho tất cả các lớp bị lỗi')
+            return
+        }
+
+        // Build new schedule
+        const newScheduleData = viewingSchedule.scheduleData.filter(
+            s => !failedClasses.includes(s.id)
+        )
+
+        // Add replacement classes
+        failedClasses.forEach(failedId => {
+            const replacement = selectedReplacements[failedId]
+            if (replacement) {
+                newScheduleData.push(replacement)
+            }
+        })
+
+        try {
+            setLoading(true)
+
+            // Prepare data for API - no need for semesterId when updating
+            const updateData = {
+                userId: user.id,
+                semesterId: null, // Not needed for update
+                schedules: newScheduleData.map(s => ({
+                    courseName: s.courseName,
+                    classNumber: s.classNumber,
+                    language: s.language,
+                    major: s.major,
+                    classGroup: s.classGroup,
+                    subtopic: s.subtopic,
+                    instructor: s.instructor,
+                    dayOfWeek: s.dayOfWeek,
+                    periods: s.periods,
+                    location: s.location,
+                    roomNumber: s.roomNumber,
+                    weeks: s.weeks,
+                    capacity: s.capacity
+                })),
+                parsedPrompt: viewingSchedule.parsedPrompt
+            }
+
+            // Update existing schedule instead of creating new one
+            await studentAPI.updateSchedule(viewingSchedule.id, updateData)
+            message.success('Đã cập nhật lịch thành công!')
+            setModalVisible(false)
+            loadSchedules()
+        } catch (error) {
+            message.error('Không thể lưu lịch mới')
+            console.error(error)
+        } finally {
+            setLoading(false)
+        }
+    }
+
+    const handleAutoReschedule = async () => {
+        const failedClassesData = viewingSchedule.scheduleData.filter(
+            s => failedClasses.includes(s.id)
+        )
+
+        const successfulClassesData = viewingSchedule.scheduleData.filter(
+            s => !failedClasses.includes(s.id)
+        )
+
+        const failedCourseNames = [...new Set(failedClassesData.map(s => s.courseName))]
+
+        try {
+            setLoading(true)
+
+            // TODO: Call NSGA-II service
+            message.info('Chức năng xếp lịch tự động đang phát triển')
+        } catch (error) {
+            message.error('Không thể xếp lịch tự động')
+            console.error(error)
+        } finally {
+            setLoading(false)
+        }
+    }
+
+    // Get preview schedule (successful + selected replacements)
+    const getPreviewSchedule = () => {
+        if (!viewingSchedule) return []
+
+        const successful = viewingSchedule.scheduleData.filter(
+            s => !failedClasses.includes(s.id)
+        )
+
+        const replacements = Object.values(selectedReplacements).filter(Boolean)
+
+        return [...successful, ...replacements]
     }
 
     return (
@@ -112,183 +246,252 @@ const MySchedules = () => {
             <h1 style={{ color: 'var(--vku-navy)', fontWeight: 700 }}>Lịch Học Của Tôi</h1>
 
             <Card style={{ marginTop: 24 }} className="vku-card">
-                <Space direction="vertical" style={{ width: '100%' }} size="middle">
-                    <div>
-                        <label style={{ display: 'block', marginBottom: 8, fontWeight: 500 }}>
-                            Năm học
-                        </label>
-                        <Select
-                            placeholder="Chọn năm học"
-                            style={{ width: '100%' }}
-                            value={selectedAcademicYear}
-                            onChange={handleAcademicYearChange}
-                            allowClear
-                            options={academicYears.map(y => ({
-                                label: y.yearName,
-                                value: y.id
-                            }))}
-                        />
-                    </div>
-
-                    <div>
-                        <label style={{ display: 'block', marginBottom: 8, fontWeight: 500 }}>
-                            Học kỳ
-                        </label>
-                        <Select
-                            placeholder="Chọn học kỳ"
-                            style={{ width: '100%' }}
-                            value={selectedSemester}
-                            onChange={setSelectedSemester}
-                            disabled={!selectedAcademicYear}
-                            allowClear
-                            options={semesters.map(s => ({
-                                label: s.semesterName,
-                                value: s.id
-                            }))}
-                        />
-                    </div>
-                </Space>
-            </Card>
-
-            {selectedSemester && (
-                <Card
-                    title={
-                        <Space>
-                            <CalendarOutlined style={{ fontSize: 20, color: 'var(--vku-red)' }} />
-                            <span>Lịch đã lưu</span>
-                            <Tag color="blue">{mySchedules.length}</Tag>
-                        </Space>
-                    }
-                    style={{ marginTop: 24 }}
-                    className="vku-card"
-                >
-                    <Spin spinning={loading}>
-                        {mySchedules.length === 0 ? (
-                            <Empty
-                                description="Chưa có lịch học nào"
-                                image={Empty.PRESENTED_IMAGE_SIMPLE}
-                            />
-                        ) : (
-                            <List
-                                dataSource={mySchedules}
-                                renderItem={(schedule) => {
-                                    const scheduleData = JSON.parse(schedule.schedule)
-                                    return (
-                                        <List.Item
-                                            actions={[
-                                                <Button
-                                                    type="primary"
-                                                    icon={<EyeOutlined />}
-                                                    onClick={() => handleViewSchedule(schedule)}
-                                                >
-                                                    Xem
-                                                </Button>,
-                                                <Button
-                                                    danger
-                                                    icon={<DeleteOutlined />}
-                                                    onClick={() => handleDeleteSchedule(schedule.id)}
-                                                >
-                                                    Xóa
-                                                </Button>
-                                            ]}
-                                        >
-                                            <List.Item.Meta
-                                                title={
-                                                    <Space>
-                                                        <CalendarOutlined style={{ color: 'var(--vku-red)' }} />
-                                                        <span>
-                                                            {schedule.semesterName} - {schedule.academicYear}
-                                                        </span>
-                                                    </Space>
-                                                }
-                                                description={
-                                                    <Space direction="vertical" size="small">
-                                                        <div>
-                                                            <Tag color="green">{scheduleData.length} lớp học</Tag>
-                                                            <span style={{ color: '#666', fontSize: 13 }}>
-                                                                Lưu lúc: {new Date(schedule.createdAt).toLocaleString('vi-VN')}
-                                                            </span>
-                                                        </div>
-                                                        <div style={{ fontSize: 13 }}>
-                                                            {scheduleData.slice(0, 3).map((s, i) => (
-                                                                <span key={i}>
-                                                                    {formatCourseName(s.courseName, s.subtopic)}
-                                                                    {i < Math.min(2, scheduleData.length - 1) && ', '}
-                                                                </span>
-                                                            ))}
-                                                            {scheduleData.length > 3 && '...'}
-                                                        </div>
-                                                    </Space>
-                                                }
-                                            />
-                                        </List.Item>
-                                    )
-                                }}
-                            />
+                {schedules.length === 0 ? (
+                    <Empty
+                        description="Chưa có lịch học nào được lưu"
+                        image={Empty.PRESENTED_IMAGE_SIMPLE}
+                    >
+                        <Button type="primary" onClick={() => navigate('/select-courses')}>
+                            Bắt đầu xếp lịch
+                        </Button>
+                    </Empty>
+                ) : (
+                    <List
+                        loading={loading}
+                        dataSource={schedules}
+                        renderItem={(schedule) => (
+                            <List.Item
+                                actions={[
+                                    <Button
+                                        type="primary"
+                                        icon={<EyeOutlined />}
+                                        onClick={() => handleViewSchedule(schedule)}
+                                    >
+                                        Xem
+                                    </Button>,
+                                    <Button
+                                        danger
+                                        icon={<DeleteOutlined />}
+                                        onClick={() => handleDeleteSchedule(schedule.id)}
+                                    >
+                                        Xóa
+                                    </Button>
+                                ]}
+                            >
+                                <List.Item.Meta
+                                    avatar={<CalendarOutlined style={{ fontSize: 32, color: 'var(--vku-red)' }} />}
+                                    title={
+                                        <Space>
+                                            <span>Lịch học {schedule.semesterName}</span>
+                                            <Tag color="blue">
+                                                {schedule.academicYear}
+                                            </Tag>
+                                        </Space>
+                                    }
+                                    description={
+                                        <Space direction="vertical" size="small">
+                                            <div>
+                                                Ngày tạo: {dayjs(schedule.createdAt).format('DD/MM/YYYY HH:mm')}
+                                            </div>
+                                            {schedule.parsedPrompt && (
+                                                <div>
+                                                    <Tag color="purple">Tự động</Tag>
+                                                    Prompt: {schedule.parsedPrompt}
+                                                </div>
+                                            )}
+                                        </Space>
+                                    }
+                                />
+                            </List.Item>
                         )}
-                    </Spin>
-                </Card>
-            )}
+                    />
+                )}
+            </Card>
 
             {/* View Schedule Modal */}
             <Modal
                 title={
-                    viewingSchedule && (
-                        <Space>
-                            <CalendarOutlined />
-                            <span>
-                                {viewingSchedule.semesterName} - {viewingSchedule.academicYear}
-                            </span>
-                        </Space>
-                    )
+                    <Space>
+                        <span>Chi tiết lịch học</span>
+                        {failedClasses.length > 0 && (
+                            <Tag color="error">{failedClasses.length} lớp bị lỗi</Tag>
+                        )}
+                    </Space>
                 }
-                open={viewModalVisible}
-                onCancel={() => setViewModalVisible(false)}
-                footer={[
-                    <Button key="close" onClick={() => setViewModalVisible(false)}>
-                        Đóng
-                    </Button>
-                ]}
-                width={1200}
+                open={modalVisible}
+                onCancel={() => {
+                    setModalVisible(false)
+                    setFailedClasses([])
+                    setShowReplacements(false)
+                }}
+                width={1400}
+                footer={
+                    showReplacements ? [
+                        <Button key="back" onClick={() => setShowReplacements(false)}>
+                            Quay lại
+                        </Button>,
+                        <Button
+                            key="save"
+                            type="primary"
+                            onClick={handleSaveNewSchedule}
+                            disabled={!failedClasses.every(id => selectedReplacements[id])}
+                        >
+                            Lưu lịch mới
+                        </Button>
+                    ] : [
+                        <Button key="close" onClick={() => {
+                            setModalVisible(false)
+                            setFailedClasses([])
+                        }}>
+                            Đóng
+                        </Button>,
+                        failedClasses.length > 0 && (
+                            <Button
+                                key="manual"
+                                type="default"
+                                icon={<CheckCircleOutlined />}
+                                onClick={handleLoadReplacements}
+                                loading={loadingReplacements}
+                            >
+                                Chọn lớp thay thế
+                            </Button>
+                        ),
+                        failedClasses.length > 0 && (
+                            <Button
+                                key="auto"
+                                type="primary"
+                                danger
+                                icon={<ThunderboltOutlined />}
+                                onClick={handleAutoReschedule}
+                            >
+                                Xếp tự động (NSGA-II)
+                            </Button>
+                        )
+                    ]
+                }
             >
                 {viewingSchedule && (
                     <div>
-                        <div style={{ marginBottom: 16 }}>
-                            <Tag color="green">{viewingSchedule.scheduleData.length} lớp học</Tag>
-                            <span style={{ color: '#666', fontSize: 13 }}>
-                                Lưu lúc: {new Date(viewingSchedule.createdAt).toLocaleString('vi-VN')}
-                            </span>
-                        </div>
+                        {!showReplacements ? (
+                            <>
+                                <Alert
+                                    message="Đánh dấu lớp bị lỗi đăng ký"
+                                    description="Click vào các lớp bị lỗi khi đăng ký (lớp đầy, trùng lịch, v.v.) để đánh dấu. Sau đó chọn cách xếp lại."
+                                    type="info"
+                                    showIcon
+                                    style={{ marginBottom: 16 }}
+                                />
 
-                        <WeeklyCalendar
-                            schedules={viewingSchedule.scheduleData}
-                            confirmedSchedules={viewingSchedule.scheduleData}
-                            currentCourse={null}
-                            onSelectSchedule={null}
-                        />
+                                {/* Class Selection List */}
+                                <Card size="small" style={{ marginBottom: 16 }}>
+                                    <div style={{ marginBottom: 8 }}>
+                                        <strong>Chọn lớp bị lỗi:</strong>
+                                    </div>
+                                    <Space direction="vertical" style={{ width: '100%' }}>
+                                        {viewingSchedule.scheduleData.map(schedule => (
+                                            <Checkbox
+                                                key={schedule.id}
+                                                checked={failedClasses.includes(schedule.id)}
+                                                onChange={() => handleToggleFailedClass(schedule.id)}
+                                            >
+                                                <Space>
+                                                    <Tag color={failedClasses.includes(schedule.id) ? 'error' : 'default'}>
+                                                        {schedule.courseName}
+                                                    </Tag>
+                                                    <span>Lớp {schedule.classNumber}</span>
+                                                    <span>-</span>
+                                                    <span>{schedule.dayOfWeek}, Tiết {schedule.periods}</span>
+                                                </Space>
+                                            </Checkbox>
+                                        ))}
+                                    </Space>
+                                </Card>
 
-                        <div style={{ marginTop: 16 }}>
-                            <h4>Danh sách lớp:</h4>
-                            <List
-                                size="small"
-                                dataSource={viewingSchedule.scheduleData}
-                                renderItem={(schedule) => (
-                                    <List.Item>
-                                        <Space>
-                                            <span style={{ fontWeight: 500 }}>
-                                                {formatCourseName(schedule.courseName, schedule.subtopic)}
-                                            </span>
-                                            {schedule.classNumber && (
-                                                <Tag color="blue">Lớp {schedule.classNumber}</Tag>
-                                            )}
-                                            <Tag>{schedule.dayOfWeek}</Tag>
-                                            <Tag>Tiết {schedule.periods}</Tag>
-                                            <Tag>{schedule.location}.{schedule.roomNumber}</Tag>
-                                        </Space>
-                                    </List.Item>
-                                )}
-                            />
-                        </div>
+                                <WeeklyCalendar
+                                    schedules={viewingSchedule.scheduleData}
+                                    confirmedSchedules={viewingSchedule.scheduleData.filter(
+                                        s => !failedClasses.includes(s.id)
+                                    )}
+                                    onSelectSchedule={null}
+                                />
+                            </>
+                        ) : (
+                            <>
+                                <Alert
+                                    message="Chọn lớp thay thế"
+                                    description="Chọn lớp thay thế cho từng môn bị lỗi. Lịch bên phải sẽ cập nhật theo lựa chọn của bạn."
+                                    type="success"
+                                    showIcon
+                                    style={{ marginBottom: 16 }}
+                                />
+
+                                <div style={{ display: 'flex', gap: 16 }}>
+                                    {/* Left: Replacement Options */}
+                                    <div style={{ flex: 1, maxHeight: 600, overflowY: 'auto' }}>
+                                        <Collapse defaultActiveKey={Object.keys(replacementClasses)}>
+                                            {viewingSchedule.scheduleData
+                                                .filter(s => failedClasses.includes(s.id))
+                                                .map(failedClass => (
+                                                    <Panel
+                                                        header={
+                                                            <Space>
+                                                                <WarningOutlined style={{ color: '#ff4d4f' }} />
+                                                                <strong>{failedClass.courseName}</strong>
+                                                                <Tag color="error">Lớp {failedClass.classNumber} (Bị lỗi)</Tag>
+                                                                {selectedReplacements[failedClass.id] && (
+                                                                    <Tag color="success">
+                                                                        → Lớp {selectedReplacements[failedClass.id].classNumber}
+                                                                    </Tag>
+                                                                )}
+                                                            </Space>
+                                                        }
+                                                        key={failedClass.id}
+                                                    >
+                                                        <Radio.Group
+                                                            value={selectedReplacements[failedClass.id]?.id}
+                                                            onChange={(e) => {
+                                                                const selected = replacementClasses[failedClass.courseName]?.find(
+                                                                    r => r.id === e.target.value
+                                                                )
+                                                                handleSelectReplacement(failedClass.id, selected)
+                                                            }}
+                                                            style={{ width: '100%' }}
+                                                        >
+                                                            <Space direction="vertical" style={{ width: '100%' }}>
+                                                                {replacementClasses[failedClass.courseName]?.map(replacement => (
+                                                                    <Radio key={replacement.id} value={replacement.id}>
+                                                                        <Space direction="vertical" size="small">
+                                                                            <div>
+                                                                                <Tag color="blue">Lớp {replacement.classNumber}</Tag>
+                                                                                <Tag>{replacement.dayOfWeek}</Tag>
+                                                                                <Tag>Tiết {replacement.periods}</Tag>
+                                                                            </div>
+                                                                            <div style={{ fontSize: 12, color: '#666' }}>
+                                                                                {replacement.location}.{replacement.roomNumber} - {replacement.instructor}
+                                                                            </div>
+                                                                        </Space>
+                                                                    </Radio>
+                                                                ))}
+                                                            </Space>
+                                                        </Radio.Group>
+                                                    </Panel>
+                                                ))}
+                                        </Collapse>
+                                    </div>
+
+                                    {/* Right: Preview Calendar */}
+                                    <div style={{ flex: 1 }}>
+                                        <Card size="small" title="Xem trước lịch mới">
+                                            <WeeklyCalendar
+                                                schedules={getPreviewSchedule()}
+                                                confirmedSchedules={getPreviewSchedule()}
+                                                onSelectSchedule={null}
+                                            />
+                                        </Card>
+                                    </div>
+                                </div>
+                            </>
+                        )}
                     </div>
                 )}
             </Modal>
