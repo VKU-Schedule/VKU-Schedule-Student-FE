@@ -1,0 +1,358 @@
+/* VKU Brand Colors */
+:root {
+    /* Primary Colors */
+    --vku-red: #E31E24;
+    --vku-red-50: #FCE4E5;
+    --vku-red-100: #F9BCBE;
+    --vku-red-200: #F59093;
+    --vku-red-300: #F16368;
+    --vku-red-400: #EE4147;
+    --vku-red-500: #E31E24;
+    --vku-red-600: #D01B20;
+    --vku-red-700: #B8171B;
+    --vku-red-800: #A01317;
+    --vku-red-900: #7A0C0F;
+
+    --vku-yellow: #FFD100;
+    --vku-yellow-50: #FFFBE6;
+    --vku-yellow-100: #FFF4BF;
+    --vku-yellow-200: #FFED95;
+    --vku-yellow-300: #FFE66B;
+    --vku-yellow-400: #FFE04B;
+    --vku-yellow-500: #FFD100;
+    --vku-yellow-600: #FFC700;
+    --vku-yellow-700: #FFBA00;
+    --vku-yellow-800: #FFAD00;
+    --vku-yellow-900: #FF9500;
+
+    --vku-navy: #2B3990;
+    --vku-navy-50: #E5E7F3;
+    --vku-navy-100: #BFC3E1;
+    --vku-navy-200: #949BCD;
+    --vku-navy-300: #6973B9;
+    --vku-navy-400: #4856AA;
+    --vku-navy-500: #2B3990;
+    --vku-navy-600: #263388;
+    --vku-navy-700: #1F2C7D;
+    --vku-navy-800: #192573;
+    --vku-navy-900: #0F1861;
+
+    /* Neutral Colors */
+    --bg-white: #FFFFFF;
+    --bg-grey: #F5F5F5;
+    --text-dark: #212121;
+    --text-medium: #616161;
+    --text-light: #757575;
+    --divider: #E0E0E0;
+
+    /* Spacing */
+    --space-xs: 4px;
+    --space-sm: 8px;
+    --space-md: 16px;
+    --space-lg: 24px;
+    --space-xl: 32px;
+
+    /* Border Radius */
+    --radius-sm: 8px;
+    --radius-md: 12px;
+    --radius-lg: 16px;
+    --radius-xl: 24px;
+
+    /* Shadows */
+    --shadow-sm: 0 1px 4px rgba(0, 0, 0, 0.04), 0 2px 8px rgba(0, 0, 0, 0.08);
+    --shadow-md: 0 2px 8px rgba(0, 0, 0, 0.06), 0 4px 16px rgba(0, 0, 0, 0.12);
+    --shadow-lg: 0 4px 12px rgba(0, 0, 0, 0.08), 0 8px 24px rgba(0, 0, 0, 0.16);
+}
+
+/* Global Styles */
+body {
+    font-family: 'Roboto', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background-color: var(--bg-grey);
+    color: var(--text-dark);
+}
+
+/* Override Ant Design primary color */
+.ant-btn-primary {
+    background-color: var(--vku-red) !important;
+    border-color: var(--vku-red) !important;
+}
+
+.ant-btn-primary:hover {
+    background-color: var(--vku-red-600) !important;
+    border-color: var(--vku-red-600) !important;
+}
+
+/* Calendar Styles */
+.calendar-cell {
+    min-height: 80px;
+    padding: 0;
+}
+
+.calendar-cell-empty {
+    background-color: #fafafa;
+    min-height: 80px;
+}
+
+.calendar-cell-content {
+    border-radius: 8px;
+    transition: all 0.3s ease;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+    height: 100%;
+    min-height: 80px;
+}
+
+.calendar-cell-content:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+}
+
+.calendar-cell-content.confirmed {
+    opacity: 1;
+}
+
+.calendar-cell-content.preview {
+    opacity: 0.6;
+}
+
+.calendar-cell-content.conflict {
+    background: repeating-linear-gradient(
+        45deg,
+        rgba(255, 152, 0, 0.3),
+        rgba(255, 152, 0, 0.3) 10px,
+        rgba(255, 193, 7, 0.3) 10px,
+        rgba(255, 193, 7, 0.3) 20px
+    ) !important;
+    border: 2px dashed #ff9800 !important;
+}
+
+/* Course Colors - Dark Theme */
+.course-color-0 {
+    background-color: #2d5d2a; /* Dark Green */
+}
+
+.course-color-1 {
+    background-color: #5d3c2a; /* Dark Brown */
+}
+
+.course-color-2 {
+    background-color: #2d3d5d; /* Navy Blue */
+}
+
+.course-color-3 {
+    background-color: #2a3b5d; /* Dark Blue */
+}
+
+.course-color-4 {
+    background-color: #5d2a2a; /* Dark Red */
+}
+
+/* Calendar Table Styles */
+.vku-calendar-table .ant-table-thead > tr > th {
+    background-color: #f0f0f0 !important;
+    font-weight: 700;
+    text-align: center;
+    border: 1px solid #d9d9d9;
+    padding: 12px 8px;
+}
+
+.vku-calendar-table .ant-table-tbody > tr > td {
+    border: 1px solid #d9d9d9;
+    padding: 0;
+    vertical-align: middle;
+}
+
+.vku-calendar-table .ant-table-cell {
+    background-color: white;
+}
+
+.vku-calendar-table .ant-table-tbody > tr {
+    height: 80px;
+}
+
+/* Course Selection Styles */
+.course-chip {
+    display: inline-flex;
+    align-items: center;
+    padding: 6px 12px;
+    border-radius: 20px;
+    font-size: 13px;
+    font-weight: 600;
+    margin: 4px;
+    transition: all 0.3s ease;
+}
+
+.course-chip-red {
+    background: linear-gradient(135deg, var(--vku-red) 0%, var(--vku-red-700) 100%);
+    color: white;
+    box-shadow: 0 2px 8px rgba(227, 30, 36, 0.3);
+}
+
+.course-chip-yellow {
+    background: linear-gradient(135deg, var(--vku-yellow) 0%, var(--vku-yellow-800) 100%);
+    color: var(--text-dark);
+    box-shadow: 0 2px 8px rgba(255, 209, 0, 0.3);
+}
+
+.course-chip-navy {
+    background: linear-gradient(135deg, var(--vku-navy) 0%, var(--vku-navy-700) 100%);
+    color: white;
+    box-shadow: 0 2px 8px rgba(43, 57, 144, 0.3);
+}
+
+.course-chip:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+/* Action Buttons */
+.action-buttons {
+    display: flex;
+    gap: var(--space-md);
+    justify-content: center;
+    margin-top: var(--space-lg);
+}
+
+.btn-auto-schedule {
+    background: linear-gradient(135deg, var(--vku-red) 0%, var(--vku-red-700) 100%);
+    border: none;
+    color: white;
+    padding: 12px 32px;
+    font-size: 16px;
+    font-weight: 600;
+    border-radius: var(--radius-sm);
+    box-shadow: var(--shadow-md);
+    transition: all 0.3s ease;
+}
+
+.btn-auto-schedule:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-lg);
+}
+
+.btn-manual-schedule {
+    background: white;
+    border: 2px solid var(--vku-red);
+    color: var(--vku-red);
+    padding: 12px 32px;
+    font-size: 16px;
+    font-weight: 600;
+    border-radius: var(--radius-sm);
+    transition: all 0.3s ease;
+}
+
+.btn-manual-schedule:hover {
+    background: var(--vku-red-50);
+    transform: translateY(-2px);
+}
+
+/* Card Styles */
+.vku-card {
+    background: white;
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-sm);
+    padding: var(--space-lg);
+    margin-bottom: var(--space-md);
+}
+
+.vku-card-header {
+    display: flex;
+    align-items: center;
+    gap: var(--space-md);
+    margin-bottom: var(--space-md);
+    padding-bottom: var(--space-md);
+    border-bottom: 2px solid var(--divider);
+}
+
+.vku-card-title {
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--text-dark);
+    margin: 0;
+}
+
+/* Badge Styles */
+.vku-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 4px 12px;
+    border-radius: 12px;
+    font-size: 14px;
+    font-weight: 700;
+    background: linear-gradient(135deg, var(--vku-red) 0%, var(--vku-yellow) 100%);
+    color: white;
+    box-shadow: 0 2px 8px rgba(227, 30, 36, 0.3);
+}
+
+/* Empty State */
+.empty-state {
+    text-align: center;
+    padding: 60px 20px;
+}
+
+.empty-state-icon {
+    width: 80px;
+    height: 80px;
+    margin: 0 auto 20px;
+    background: linear-gradient(135deg, var(--vku-red) 0%, var(--vku-yellow) 100%);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-size: 40px;
+    box-shadow: var(--shadow-lg);
+}
+
+.empty-state-title {
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--text-dark);
+    margin-bottom: 8px;
+}
+
+.empty-state-description {
+    font-size: 14px;
+    color: var(--text-light);
+}
+
+/* Animations */
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.fade-in {
+    animation: fadeIn 0.3s ease-out;
+}
+
+@keyframes pulse {
+    0%, 100% {
+        transform: scale(1);
+    }
+    50% {
+        transform: scale(1.05);
+    }
+}
+
+.pulse {
+    animation: pulse 2s ease-in-out infinite;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .action-buttons {
+        flex-direction: column;
+    }
+
+    .btn-auto-schedule,
+    .btn-manual-schedule {
+        width: 100%;
+    }
+}

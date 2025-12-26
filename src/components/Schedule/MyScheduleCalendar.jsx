@@ -1,56 +1,27 @@
 import './WeeklyCalendar.css'
-import { parsePeriods, findConflict } from '../../utils/courseUtils'
+import { parsePeriods } from '../../utils/courseUtils'
 
-const WeeklyCalendar = ({
+const MyScheduleCalendar = ({
     schedules,
-    confirmedSchedules = [],
-    currentCourse = null,
-    onSelectSchedule,
-    showConflicts = false
+    failedClasses = []
 }) => {
 
     const days = ['Thứ Hai', 'Thứ Ba', 'Thứ Tư', 'Thứ Năm', 'Thứ Sáu', 'Thứ Bảy', 'Chủ Nhật']
     const periods = Array.from({ length: 10 }, (_, i) => i + 1)
 
-    // Check if schedule is confirmed
-    const isConfirmed = (scheduleId) => {
-        return confirmedSchedules.some(s => s.id === scheduleId)
-    }
-
-    // Helper to normalize subtopic for comparison
-    const normalizeSubtopic = (val) => {
-        if (val === null || val === undefined || val === 'null' || val === '') return null
-        return val
-    }
-
-    // Check if schedule is from current course (match both courseName and subtopic)
-    const isCurrentCourse = (schedule) => {
-        if (!currentCourse) return false
-        const scheduleSubtopic = normalizeSubtopic(schedule.subtopic)
-        const currentSubtopic = normalizeSubtopic(currentCourse.subtopic)
-
-        return schedule.courseName === currentCourse.courseName && scheduleSubtopic === currentSubtopic
-    }
-
-    // Check if schedule conflicts
-    const hasConflictCheck = (schedule) => {
-        if (!showConflicts) return false
-        if (isConfirmed(schedule.id)) return false
-
-        const conflictingSchedule = findConflict(schedule, confirmedSchedules)
-        return conflictingSchedule !== null
+    // Check if schedule is marked as failed
+    const isFailed = (schedule) => {
+        return failedClasses.includes(schedule.uniqueKey || schedule.id)
     }
 
     // Get course color (15 colors for better distribution)
     const getCourseColor = (courseName) => {
-        // Better hash function for more even distribution
         let hash = 0
         for (let i = 0; i < courseName.length; i++) {
             const char = courseName.charCodeAt(i)
             hash = ((hash << 5) - hash) + char
-            hash = hash & hash // Convert to 32bit integer
+            hash = hash & hash
         }
-        // Use 15 colors instead of 5 to reduce collision
         return Math.abs(hash) % 15
     }
 
@@ -111,16 +82,12 @@ const WeeklyCalendar = ({
                     }
 
                     if (canPlace) {
-                        const confirmed = isConfirmed(schedule.id)
-                        const current = isCurrentCourse(schedule)
-                        const conflict = hasConflictCheck(schedule)
+                        const failed = isFailed(schedule)
 
                         const cellData = {
                             schedule,
                             span,
-                            confirmed,
-                            current,
-                            conflict,
+                            failed,
                             colorIndex: getCourseColor(schedule.courseName)
                         }
 
@@ -184,24 +151,19 @@ const WeeklyCalendar = ({
                                     )
                                 }
 
-                                const { schedule, span, confirmed, current, conflict, colorIndex } = cell
+                                const { schedule, span, failed, colorIndex } = cell
 
                                 const classNames = [
                                     'schedule-cell',
                                     `color-${colorIndex}`,
-                                    confirmed ? 'confirmed' : 'preview',
-                                    conflict ? 'conflict' : ''
+                                    failed ? 'failed' : 'confirmed'
                                 ].filter(Boolean).join(' ')
-
-                                const canClick = onSelectSchedule && !conflict
 
                                 return (
                                     <td
                                         key={day}
                                         rowSpan={span}
                                         className={classNames}
-                                        onClick={() => canClick && onSelectSchedule(schedule)}
-                                        style={{ cursor: canClick ? 'pointer' : conflict ? 'not-allowed' : 'default' }}
                                     >
                                         <div className="cell-content">
                                             <div className="course-name">{schedule.courseName}</div>
@@ -214,8 +176,8 @@ const WeeklyCalendar = ({
                                             {schedule.instructor && (
                                                 <div className="instructor-info">{schedule.instructor}</div>
                                             )}
-                                            {conflict && (
-                                                <div className="conflict-badge">⚠ Trùng lịch</div>
+                                            {failed && (
+                                                <div className="conflict-badge">⚠ Lớp lỗi</div>
                                             )}
                                         </div>
                                     </td>
@@ -229,4 +191,4 @@ const WeeklyCalendar = ({
     )
 }
 
-export default WeeklyCalendar
+export default MyScheduleCalendar

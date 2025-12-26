@@ -23,7 +23,6 @@ const CourseSearch = ({ onCourseSelect }) => {
             const response = await searchAPI.searchCourses(value)
             setResults(response.data)
         } catch (error) {
-            console.error('Search failed:', error)
             setResults([])
         } finally {
             setLoading(false)

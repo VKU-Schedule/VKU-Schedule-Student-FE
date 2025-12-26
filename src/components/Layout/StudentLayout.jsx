@@ -70,15 +70,24 @@ const StudentLayout = () => {
 
     return (
         <Layout style={{ minHeight: '100vh' }}>
-            <Sider collapsible collapsed={collapsed} onCollapse={setCollapsed}>
+            <Sider
+                collapsible
+                collapsed={collapsed}
+                onCollapse={setCollapsed}
+                style={{
+                    background: 'var(--vku-navy)'
+                }}
+            >
                 <div style={{
                     height: 64,
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
+                    background: 'linear-gradient(135deg, var(--vku-red) 0%, var(--vku-navy) 100%)',
                     color: 'white',
                     fontSize: collapsed ? 16 : 20,
-                    fontWeight: 'bold'
+                    fontWeight: 'bold',
+                    boxShadow: '0 2px 8px rgba(0,0,0,0.15)'
                 }}>
                     {collapsed ? 'VKU' : 'VKU Schedule'}
                 </div>
@@ -88,26 +97,52 @@ const StudentLayout = () => {
                     selectedKeys={[location.pathname]}
                     items={menuItems}
                     onClick={handleMenuClick}
+                    style={{
+                        background: 'var(--vku-navy)',
+                        borderRight: 0
+                    }}
                 />
             </Sider>
             <Layout>
                 <Header style={{
                     padding: '0 24px',
-                    background: '#fff',
+                    background: 'linear-gradient(135deg, var(--vku-navy) 0%, var(--vku-navy-700) 100%)',
                     display: 'flex',
                     alignItems: 'center',
-                    justifyContent: 'space-between'
+                    justifyContent: 'space-between',
+                    boxShadow: '0 2px 8px rgba(0,0,0,0.15)'
                 }}>
-                    <h2 style={{ margin: 0 }}>Hệ Thống Xếp Lịch Học VKU</h2>
+                    <h2 style={{
+                        margin: 0,
+                        color: 'white',
+                        fontWeight: 700,
+                        fontSize: 20
+                    }}>
+                        Hệ Thống Xếp Lịch Học VKU
+                    </h2>
 
                     <Dropdown menu={{ items: userMenuItems }} placement="bottomRight">
                         <Space style={{ cursor: 'pointer' }}>
-                            <Avatar src={user?.picture} icon={<UserOutlined />} />
-                            <span>{user?.name}</span>
+                            <Avatar
+                                src={user?.picture}
+                                icon={<UserOutlined />}
+                                style={{
+                                    background: 'var(--vku-yellow)',
+                                    color: 'var(--text-dark)'
+                                }}
+                            />
+                            <span style={{ color: 'white', fontWeight: 500 }}>
+                                {user?.name}
+                            </span>
                         </Space>
                     </Dropdown>
                 </Header>
-                <Content style={{ margin: '24px 16px', padding: 24, background: '#fff' }}>
+                <Content style={{
+                    margin: '24px 16px',
+                    padding: 24,
+                    background: 'var(--bg-grey)',
+                    minHeight: 280
+                }}>
                     <Outlet />
                 </Content>
             </Layout>

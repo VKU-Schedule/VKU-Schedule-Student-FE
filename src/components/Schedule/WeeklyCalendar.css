@@ -1,0 +1,380 @@
+/* Weekly Calendar Styles */
+.weekly-calendar {
+    width: 100%;
+    overflow-x: auto;
+}
+
+.calendar-table {
+    width: 100%;
+    border-collapse: collapse;
+    background: white;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+/* Header Styles */
+.calendar-table thead th {
+    background: #f5f5f5;
+    border: 1px solid #e0e0e0;
+    padding: 12px 8px;
+    text-align: center;
+    font-weight: 600;
+    color: #333;
+}
+
+.period-header {
+    width: 60px;
+    font-size: 12px;
+}
+
+.day-header {
+    min-width: 140px;
+    font-size: 12px;
+}
+
+.day-name {
+    font-weight: 700;
+}
+
+/* Body Cells */
+.calendar-table tbody td {
+    border: 1px solid #e0e0e0;
+    padding: 0;
+    vertical-align: middle;
+    height: 70px;
+}
+
+.period-cell {
+    background: #fafafa;
+    text-align: center;
+    font-weight: 600;
+    color: #666;
+}
+
+.period-number {
+    font-size: 14px;
+}
+
+/* Empty Cell */
+.empty-cell {
+    background: white;
+}
+
+.empty-cell .cell-content {
+    min-height: 70px;
+}
+
+/* Schedule Cell */
+.schedule-cell {
+    padding: 6px;
+    transition: all 0.2s ease;
+    position: relative;
+}
+
+.schedule-cell:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    z-index: 10;
+}
+
+.schedule-cell .cell-content {
+    color: white;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+    padding: 10px 8px;
+    border-radius: 8px;
+    background: inherit;
+}
+
+/* Course Colors - Extended Palette (15 colors) */
+.schedule-cell.color-0 {
+    background-color: #2d5d2a; /* Dark Green */
+}
+
+.schedule-cell.color-0 .cell-content {
+    background-color: #2d5d2a;
+}
+
+.schedule-cell.color-1 {
+    background-color: #5d3c2a; /* Dark Brown */
+}
+
+.schedule-cell.color-1 .cell-content {
+    background-color: #5d3c2a;
+}
+
+.schedule-cell.color-2 {
+    background-color: #2d3d5d; /* Navy Blue */
+}
+
+.schedule-cell.color-2 .cell-content {
+    background-color: #2d3d5d;
+}
+
+.schedule-cell.color-3 {
+    background-color: #2a3b5d; /* Dark Blue */
+}
+
+.schedule-cell.color-3 .cell-content {
+    background-color: #2a3b5d;
+}
+
+.schedule-cell.color-4 {
+    background-color: #5d2a2a; /* Dark Red */
+}
+
+.schedule-cell.color-4 .cell-content {
+    background-color: #5d2a2a;
+}
+
+.schedule-cell.color-5 {
+    background-color: #4a5d2a; /* Olive Green */
+}
+
+.schedule-cell.color-5 .cell-content {
+    background-color: #4a5d2a;
+}
+
+.schedule-cell.color-6 {
+    background-color: #5d2a4a; /* Dark Magenta */
+}
+
+.schedule-cell.color-6 .cell-content {
+    background-color: #5d2a4a;
+}
+
+.schedule-cell.color-7 {
+    background-color: #2a5d5d; /* Dark Teal */
+}
+
+.schedule-cell.color-7 .cell-content {
+    background-color: #2a5d5d;
+}
+
+.schedule-cell.color-8 {
+    background-color: #5d4a2a; /* Dark Orange */
+}
+
+.schedule-cell.color-8 .cell-content {
+    background-color: #5d4a2a;
+}
+
+.schedule-cell.color-9 {
+    background-color: #3d2a5d; /* Dark Purple */
+}
+
+.schedule-cell.color-9 .cell-content {
+    background-color: #3d2a5d;
+}
+
+.schedule-cell.color-10 {
+    background-color: #2a4a5d; /* Steel Blue */
+}
+
+.schedule-cell.color-10 .cell-content {
+    background-color: #2a4a5d;
+}
+
+.schedule-cell.color-11 {
+    background-color: #5d2a3d; /* Dark Rose */
+}
+
+.schedule-cell.color-11 .cell-content {
+    background-color: #5d2a3d;
+}
+
+.schedule-cell.color-12 {
+    background-color: #3d5d2a; /* Forest Green */
+}
+
+.schedule-cell.color-12 .cell-content {
+    background-color: #3d5d2a;
+}
+
+.schedule-cell.color-13 {
+    background-color: #5d3d2a; /* Rust Brown */
+}
+
+.schedule-cell.color-13 .cell-content {
+    background-color: #5d3d2a;
+}
+
+.schedule-cell.color-14 {
+    background-color: #2a3d5d; /* Deep Blue */
+}
+
+.schedule-cell.color-14 .cell-content {
+    background-color: #2a3d5d;
+}
+
+/* States */
+.schedule-cell.confirmed {
+    opacity: 1;
+}
+
+.schedule-cell.preview {
+    opacity: 0.65;
+}
+
+.schedule-cell.conflict {
+    position: relative;
+    border: 3px solid #ff5252 !important;
+    box-shadow: 0 0 0 2px rgba(255, 82, 82, 0.3) !important;
+    opacity: 0.5 !important;
+    cursor: not-allowed !important;
+}
+
+.schedule-cell.conflict::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: repeating-linear-gradient(
+        45deg,
+        rgba(255, 82, 82, 0.2),
+        rgba(255, 82, 82, 0.2) 10px,
+        rgba(255, 152, 0, 0.2) 10px,
+        rgba(255, 152, 0, 0.2) 20px
+    );
+    pointer-events: none;
+    z-index: 1;
+}
+
+.schedule-cell.conflict .cell-content {
+    position: relative;
+    z-index: 2;
+    filter: grayscale(30%);
+}
+
+.schedule-cell.conflict:hover {
+    transform: none !important;
+    box-shadow: 0 0 0 2px rgba(255, 82, 82, 0.3) !important;
+}
+
+/* Failed state (for MyScheduleCalendar) */
+.schedule-cell.failed {
+    position: relative;
+    border: 3px solid #ff4d4f !important;
+    box-shadow: 0 0 0 2px rgba(255, 77, 79, 0.3) !important;
+    opacity: 0.75 !important;
+}
+
+.schedule-cell.failed::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: repeating-linear-gradient(
+        45deg,
+        rgba(255, 77, 79, 0.15),
+        rgba(255, 77, 79, 0.15) 10px,
+        transparent 10px,
+        transparent 20px
+    );
+    pointer-events: none;
+    z-index: 1;
+}
+
+.schedule-cell.failed .cell-content {
+    position: relative;
+    z-index: 2;
+}
+
+/* Text Styles */
+.course-name {
+    font-size: 14px;
+    font-weight: 600;
+    line-height: 1.4;
+    margin-bottom: 6px;
+    text-align: center;
+    width: 100%;
+}
+
+.class-info {
+    font-size: 11px;
+    opacity: 0.95;
+    margin-bottom: 6px;
+    text-align: center;
+    width: 100%;
+}
+
+.room-info {
+    font-size: 11px;
+    opacity: 0.9;
+    margin-bottom: 4px;
+    text-align: center;
+    width: 100%;
+    font-weight: 500;
+}
+
+.instructor-info {
+    font-size: 10px;
+    opacity: 0.85;
+    margin-top: 4px;
+    text-align: center;
+    width: 100%;
+}
+
+.conflict-badge {
+    font-size: 11px;
+    color: #ff5252;
+    font-weight: 700;
+    margin-top: 6px;
+    text-align: center;
+    width: 100%;
+    background: rgba(255, 255, 255, 0.9);
+    padding: 2px 6px;
+    border-radius: 4px;
+    text-shadow: none;
+}
+
+/* Empty State */
+.empty-state {
+    text-align: center;
+    padding: 60px 20px;
+}
+
+.empty-state-icon {
+    font-size: 48px;
+    margin-bottom: 16px;
+}
+
+.empty-state-title {
+    font-size: 18px;
+    font-weight: 600;
+    color: #333;
+    margin-bottom: 8px;
+}
+
+.empty-state-description {
+    font-size: 14px;
+    color: #666;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .day-header {
+        min-width: 100px;
+        font-size: 11px;
+    }
+    
+    .course-name {
+        font-size: 12px;
+    }
+    
+    .class-info,
+    .room-info {
+        font-size: 10px;
+    }
+    
+    .instructor-info {
+        font-size: 9px;
+    }
+}
