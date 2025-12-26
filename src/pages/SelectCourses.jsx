@@ -36,6 +36,7 @@ const SelectCourses = () => {
     const [optimizing, setOptimizing] = useState(false)
     const [optimizedSchedules, setOptimizedSchedules] = useState([])
     const [selectedScheduleIndex, setSelectedScheduleIndex] = useState(null)
+    const [parsedPrompt, setParsedPrompt] = useState(null) // Store parsed_prompt from API
 
     // Step 4: Save
     const [saving, setSaving] = useState(false)
@@ -148,6 +149,9 @@ const SelectCourses = () => {
 
             console.log('Optimization response:', response.data)
 
+            // Store parsed_prompt for later use
+            const parsedPromptFromAPI = response.data.parsed_prompt || {}
+
             if (response.data && response.data.schedules && response.data.schedules.length > 0) {
                 // Convert API response to our schedule format
                 const convertedSchedules = response.data.schedules.map((scheduleOption, index) => {
@@ -185,6 +189,8 @@ const SelectCourses = () => {
                 })
 
                 setOptimizedSchedules(convertedSchedules)
+                // Store parsed_prompt in state for saving later
+                setParsedPrompt(parsedPromptFromAPI)
                 message.success(`Đã tìm thấy ${convertedSchedules.length} phương án tối ưu`)
                 setCurrentStep(3)
             } else {
@@ -269,7 +275,8 @@ const SelectCourses = () => {
                 userId: user.id,
                 semesterId: selectedSemester,
                 schedules: scheduleDTOs,
-                parsedPrompt: prompt // Auto schedule has prompt
+                prompt: prompt, // Save original prompt text
+                parsedPrompt: parsedPrompt || {} // Use parsed_prompt from API (JSON object)
             }
 
             await studentAPI.saveSchedule(saveRequest)

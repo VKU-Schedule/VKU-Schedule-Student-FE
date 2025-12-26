@@ -212,7 +212,8 @@ const MySchedules = () => {
                     weeks: s.weeks,
                     capacity: s.capacity
                 })),
-                parsedPrompt: selectedSchedule.parsedPrompt
+                prompt: selectedSchedule.prompt, // Keep original prompt
+                parsedPrompt: selectedSchedule.parsedPrompt // Keep original parsedPrompt
             }
 
             // Update existing schedule instead of creating new one
@@ -250,9 +251,12 @@ const MySchedules = () => {
             return
         }
 
-        // Open optimization modal
+        // Get saved ORIGINAL prompt from schedule (not parsedPrompt JSON)
+        const savedPrompt = selectedSchedule.prompt || 'Tối ưu hóa lịch học với ít ngày học nhất, tránh trùng lịch'
+
+        // Open optimization modal with saved prompt
         setOptimizationModalVisible(true)
-        setOptimizationPrompt('Tối ưu hóa lịch học với ít ngày học nhất, tránh trùng lịch')
+        setOptimizationPrompt(savedPrompt)
     }
 
     const handleOptimizeWithNSGAII = async () => {
@@ -269,28 +273,96 @@ const MySchedules = () => {
                 s => failedClasses.includes(s.uniqueKey)
             )
 
-            // Build queries array
-            // If subTopic is empty/null/"null": just courseName
-            // If subTopic has value: courseName @ subTopic
-            const queries = [...new Set(failedClassesData.map(cls => {
-                const subtopic = cls.subtopic
-                if (subtopic && subtopic.trim() && subtopic !== 'null' && subtopic !== 'undefined') {
-                    return `${cls.courseName} @ ${subtopic}`
+            // Get successful classes (not failed)
+            const successfulClasses = selectedSchedule.scheduleData.filter(
+                s => !failedClasses.includes(s.uniqueKey)
+            )
+
+            // Get unique course names from failed classes
+            const failedCourseNames = [...new Set(failedClassesData.map(cls => cls.courseName))]
+
+            // Get all course names (for querying database)
+            const allCourseNames = [...new Set(failedClassesData.map(cls => cls.courseName))]
+
+            // Check if prompt has changed
+            const originalPrompt = selectedSchedule.prompt || ''
+            const promptChanged = optimizationPrompt.trim() !== originalPrompt.trim()
+
+            let response
+
+            if (promptChanged) {
+                // Prompt changed -> Call OPTIMIZATION_API (/api/convert)
+                console.log('Prompt changed, calling OPTIMIZATION_API /api/convert')
+
+                // Build queries for failed courses
+                const queries = [...new Set(failedClassesData.map(cls => {
+                    const subtopic = cls.subtopic
+                    if (subtopic && subtopic.trim() && subtopic !== 'null' && subtopic !== 'undefined') {
+                        return `${cls.courseName} @ ${subtopic}`
+                    }
+                    return cls.courseName
+                }))]
+
+                response = await optimizationAPI.optimizeSchedule(queries, optimizationPrompt)
+
+                console.log('OPTIMIZATION_API response:', response.data)
+            } else {
+                // Prompt unchanged -> Call SCHEDULE_API (/api/reschedule)
+                console.log('Prompt unchanged, calling SCHEDULE_API /api/reschedule')
+
+                // parsedPrompt should already be a JSON object from database
+                let parsedPromptObj = selectedSchedule.parsedPrompt || {}
+
+                // Handle legacy data: if it's a string (old prompt format), parse it
+                if (typeof parsedPromptObj === 'string') {
+                    try {
+                        parsedPromptObj = JSON.parse(parsedPromptObj)
+                    } catch (e) {
+                        console.error('Failed to parse parsedPrompt:', e)
+                        parsedPromptObj = {}
+                    }
                 }
-                return cls.courseName
-            }))]
 
-            console.log('Optimization request:', { queries, prompt: optimizationPrompt })
+                console.log('Reschedule request:', {
+                    selected_classes: successfulClasses,
+                    parsed_prompt: parsedPromptObj,
+                    failed_classes: failedCourseNames,
+                    course_names: allCourseNames
+                })
 
-            // Call NSGA-II API
-            const response = await optimizationAPI.optimizeSchedule(queries, optimizationPrompt)
+                response = await optimizationAPI.reschedule({
+                    selected_classes: successfulClasses.map(cls => ({
+                        course_name: cls.courseName,
+                        class_index: cls.classNumber,
+                        language: cls.language,
+                        field: cls.major,
+                        sub_topic: cls.subtopic || '',
+                        teacher: cls.instructor,
+                        day: cls.dayOfWeek,
+                        periods: typeof cls.periods === 'string' ? cls.periods.split(',').map(Number) : cls.periods,
+                        area: cls.location,
+                        room: cls.roomNumber,
+                        class_size: cls.capacity || 0
+                    })),
+                    parsed_prompt: parsedPromptObj,
+                    failed_classes: failedCourseNames,
+                    course_names: allCourseNames
+                })
 
-            console.log('Optimization response:', response.data)
+                console.log('SCHEDULE_API response:', response.data)
+            }
 
             if (response.data && response.data.schedules && response.data.schedules.length > 0) {
                 // Convert API response to our schedule format
                 const convertedSchedules = response.data.schedules.map((scheduleOption, index) => {
-                    const scheduleData = scheduleOption.schedule.map(session => {
+                    console.log(`Converting schedule option ${index}:`, scheduleOption.schedule)
+
+                    const scheduleData = scheduleOption.schedule.map((item, sessionIndex) => {
+                        // Handle both formats: [course_name, session] or just session
+                        const session = Array.isArray(item) && item.length >= 2 ? item[1] : item
+
+                        console.log(`  Session ${sessionIndex}:`, session)
+
                         // Map API session format to our schedule format
                         return {
                             courseName: session.course_name || session.courseName,
@@ -306,9 +378,11 @@ const MySchedules = () => {
                             roomNumber: session.room,
                             weeks: '', // Not provided by API
                             capacity: session.class_size || session.classSize,
-                            uniqueKey: `opt-${index}-${session.course_name}-${session.class_index}-${session.day}`
+                            uniqueKey: `opt-${index}-${sessionIndex}-${session.course_name || session.courseName}-${session.class_index || session.classIndex}-${session.day}`
                         }
                     })
+
+                    console.log(`  Converted schedule data for option ${index}:`, scheduleData)
 
                     return {
                         id: scheduleOption.id || `schedule-${index}`,
@@ -316,6 +390,8 @@ const MySchedules = () => {
                         scheduleData
                     }
                 })
+
+                console.log('All converted schedules:', convertedSchedules)
 
                 setOptimizedSchedules(convertedSchedules)
                 message.success(`Đã tìm thấy ${convertedSchedules.length} phương án tối ưu`)
@@ -348,7 +424,16 @@ const MySchedules = () => {
                 s => !failedClasses.includes(s.uniqueKey)
             )
 
+            console.log('Successful classes (not rescheduled):', successfulClasses)
+            console.log('Optimized schedule data (rescheduled):', selectedOptimizedSchedule.scheduleData)
+
             const newScheduleData = [...successfulClasses, ...selectedOptimizedSchedule.scheduleData]
+
+            console.log('Final merged schedule:', newScheduleData)
+
+            // Check if prompt changed to determine what to save
+            const originalPrompt = selectedSchedule.prompt || ''
+            const promptChanged = optimizationPrompt.trim() !== originalPrompt.trim()
 
             // Update schedule
             const updateData = {
@@ -369,7 +454,8 @@ const MySchedules = () => {
                     weeks: s.weeks,
                     capacity: s.capacity
                 })),
-                parsedPrompt: optimizationPrompt
+                prompt: optimizationPrompt, // Save new prompt text
+                parsedPrompt: promptChanged ? null : selectedSchedule.parsedPrompt // Keep old parsedPrompt if prompt unchanged
             }
 
             await studentAPI.updateSchedule(selectedSchedule.id, updateData)
@@ -383,7 +469,8 @@ const MySchedules = () => {
             setSelectedSchedule({
                 ...selectedSchedule,
                 scheduleData: newScheduleDataWithKeys,
-                parsedPrompt: optimizationPrompt
+                prompt: optimizationPrompt,
+                parsedPrompt: promptChanged ? null : selectedSchedule.parsedPrompt
             })
 
             message.success('Đã áp dụng lịch tối ưu thành công!')
@@ -470,7 +557,21 @@ const MySchedules = () => {
                                         }
                                         description={
                                             <div style={{ fontSize: 12 }}>
-                                                {dayjs(schedule.createdAt).format('DD/MM/YYYY')}
+                                                <div>{dayjs(schedule.createdAt).format('DD/MM/YYYY')}</div>
+                                                {schedule.parsedPrompt && (
+                                                    <div style={{
+                                                        marginTop: 4,
+                                                        color: '#8c8c8c',
+                                                        fontStyle: 'italic',
+                                                        fontSize: 11,
+                                                        maxWidth: '100%',
+                                                        overflow: 'hidden',
+                                                        textOverflow: 'ellipsis',
+                                                        whiteSpace: 'nowrap'
+                                                    }}>
+                                                        <span style={{ color: '#52c41a', fontWeight: 500 }}>✓</span> Tối ưu hóa
+                                                    </div>
+                                                )}
                                             </div>
                                         }
                                     />
